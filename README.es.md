@@ -9,6 +9,7 @@
 ![Plataforma](https://img.shields.io/badge/plataforma-Windows%2010%20%7C%2011-2f5fb3)
 ![Tamaño](https://img.shields.io/badge/tamaño-~5%20MB%2C%20sin%20runtime-0b4f9e)
 ![Idiomas](https://img.shields.io/badge/idiomas-english%20%7C%20español-12b5cb)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-apoya%20el%20proyecto-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yesidrobayo)
 
 [English](README.md) · **Español** · [Cambios por versión](CHANGELOG.es.md)
 
@@ -43,6 +44,7 @@ vuelve como estaba, y si ya estaba encendido, HDRShift no lo toca.
 - [Tecnología](#-tecnología)
 - [Desarrollo](#-desarrollo)
 - [Créditos](#-créditos)
+- [Apoya el proyecto](#-apoya-el-proyecto)
 - [Licencia y contribuciones](#-licencia-y-contribuciones)
 
 ## ✨ Funciones
@@ -129,11 +131,16 @@ Para desinstalar: en los ajustes, pulsa **Desinstalar…**, elige si conservas t
 
 1. Abre HDRShift. La tarjeta de arriba muestra si tu monitor tiene el HDR encendido, con un interruptor para cambiarlo a mano.
 2. Pulsa **Añadir app**, elige el exe del juego y pulsa **Guardar**. Tus monitores con HDR ya vienen marcados.
-3. Haz clic en la tarjeta de la app y pulsa **Crear acceso directo**.
+3. Pulsa el lápiz de la app y luego **Crear acceso directo**.
 4. A partir de ahora, abre tu juego desde ese acceso directo.
 
 El botón de reproducir de cada tarjeta hace lo mismo. Con una sesión activa se convierte en un botón de parar, que termina la
 sesión y deja el HDR como estaba sin cerrar la app.
+
+¿Prefieres olvidarte? Activa **Encender solo** encima de tus apps: el HDR se enciende las abras como las abras, incluso desde
+Steam. HDRShift se queda entonces en la bandeja.
+
+Para cambiar una app o quitarla, pulsa su lápiz.
 
 Para cerrar HDRShift por completo: **Salir** en el menú de la bandeja, o **Cerrar HDRShift por completo** en los ajustes. Antes
 deja el HDR como estaba.
@@ -145,7 +152,7 @@ deja el HDR como estaba.
 | **Tema** | Como Windows, oscuro o claro. |
 | **Idioma** | Español o inglés. |
 | **Quedarse en la bandeja** | Deja el interruptor a mano. Apagado, HDRShift no deja nada en marcha sin apps abiertas. |
-| **Detectar mis apps solo** | Enciende el HDR cuando una de tus apps se abre por cualquier camino. Necesita **Quedarse en la bandeja**. |
+| **Detectar mis apps solo** | Lo mismo que el interruptor **Encender solo** encima de tus apps. Necesita **Quedarse en la bandeja**. |
 | **Iniciar con Windows** | Arranca en la bandeja. Necesita **Quedarse en la bandeja**. |
 | **Crear acceso directo del interruptor** | Crea un acceso que enciende o apaga el HDR de un clic. |
 
@@ -215,6 +222,11 @@ depuración, `HDRSHIFT_DEMO` (`on`, `off`, `edit`, `settings`, `welcome`) abre u
 - **HDRShift es un proyecto independiente**, sin relación con Microsoft, ASUS ni ninguna otra marca, ni respaldado por ellas.
   Sus nombres pertenecen a sus dueños.
 - **Uso de IA:** esta app se desarrolló con ayuda de herramientas de IA.
+
+## ☕ Apoya el proyecto
+
+HDRShift es gratis y lo hace una sola persona. Si te gusta y quieres apoyarlo, puedes invitarme a un café en
+**[Ko-fi](https://ko-fi.com/yesidrobayo)**. No es obligatorio: contar si funciona con tu monitor también ayuda mucho.
 
 ---
 

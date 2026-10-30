@@ -29,8 +29,8 @@ Only the latest version published in *Releases* receives fixes.
   is left to restore.
 - **Nothing is executed from a message.** Other processes can only ask for an app already in your list by its id, a switch
   change, ending a session, forgetting what's left to restore, a reload or quitting. Orders are size-limited and rejected if they aren't valid.
-- **No telemetry, no automatic updates, no accounts.** It never connects to the internet. The links in the window only open
-  your browser when you click them.
+- **No telemetry, no automatic updates, no accounts.** It never connects to the internet. The links in the window, like GitHub
+  or Ko-fi, only open your browser when you click them.
 - **A broken file isn't lost**: if `config.json` can't be read, it's first copied to `config.bad.json`. The program and
   arguments in it are run as they are, so treat that file like a shortcut.
 - **The log has no personal data**: no PC or Windows user name, no paths. It does include the names you gave your apps and
@@ -72,8 +72,8 @@ Solo la última versión publicada en *Releases* recibe arreglos.
 - **Nada se ejecuta a partir de un mensaje.** Otros procesos solo pueden pedir por su id una app que ya esté en tu lista, un
   cambio del interruptor, terminar una sesión, olvidar lo que queda por restaurar, recargar o salir. Las órdenes tienen un tamaño máximo y se rechazan si no son
   válidas.
-- **Sin telemetría, sin actualizaciones automáticas y sin cuentas.** Nunca se conecta a internet. Los enlaces de la ventana
-  solo abren tu navegador cuando los pulsas.
+- **Sin telemetría, sin actualizaciones automáticas y sin cuentas.** Nunca se conecta a internet. Los enlaces de la ventana, como GitHub o
+  Ko-fi, solo abren tu navegador cuando los pulsas.
 - **Un archivo dañado no se pierde**: si `config.json` no se puede leer, antes se copia a `config.bad.json`. El programa y los
   argumentos que contiene se ejecutan tal cual, así que trata ese archivo como a un acceso directo.
 - **El log no tiene datos personales**: ni nombre del PC o del usuario de Windows, ni rutas. Sí incluye los nombres que les

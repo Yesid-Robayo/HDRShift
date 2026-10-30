@@ -269,6 +269,9 @@ impl Settings {
                 if ui.link("GitHub").clicked() {
                     ipc::open_external(hdrshift_core::REPO_URL);
                 }
+                if ui.link(tr("Apoyar en Ko-fi", "Support on Ko-fi")).clicked() {
+                    ipc::open_external(hdrshift_core::KOFI_URL);
+                }
             });
         });
     }

@@ -9,6 +9,7 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-2f5fb3)
 ![Size](https://img.shields.io/badge/size-~5%20MB%2C%20no%20runtime-0b4f9e)
 ![Languages](https://img.shields.io/badge/languages-english%20%7C%20español-12b5cb)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-support%20the%20project-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/yesidrobayo)
 
 **English** · [Español](README.es.md) · [Changelog](CHANGELOG.md)
 
@@ -43,6 +44,7 @@ HDRShift doesn't touch it.
 - [Technology](#-technology)
 - [Development](#-development)
 - [Credits](#-credits)
+- [Support the project](#-support-the-project)
 - [License and contributions](#-license-and-contributions)
 
 ## ✨ Features
@@ -128,11 +130,16 @@ To uninstall: in the settings, press **Uninstall…**, choose whether to keep yo
 
 1. Open HDRShift. The top card shows whether your monitor has HDR on, with a switch to change it by hand.
 2. Press **Add app**, choose the game's exe and press **Save**. Your HDR monitors are selected already.
-3. Click the app's card and press **Create shortcut**.
+3. Press the app's pencil, then **Create shortcut**.
 4. Open your game from that shortcut from now on.
 
 The play button in each card does the same thing. While a session is active it turns into a stop button, which ends the
 session and puts HDR back without closing the app.
+
+Prefer not to think about it? Turn on **Turn on by itself** above your apps: HDR turns on however you open them, even from
+Steam. HDRShift then stays in the tray.
+
+To change an app or remove it, press its pencil.
 
 To close HDRShift completely: **Quit** in the tray menu, or **Quit HDRShift completely** in the settings. HDR goes back to how
 it was first.
@@ -144,7 +151,7 @@ it was first.
 | **Theme** | Same as Windows, dark or light. |
 | **Language** | Spanish or English. |
 | **Stay in the tray** | Keeps the switch at hand. Off, HDRShift leaves nothing running when no apps are open. |
-| **Detect my apps on its own** | Turns HDR on when one of your apps opens by any route. Needs **Stay in the tray**. |
+| **Detect my apps on its own** | The same as the **Turn on by itself** switch above your apps. Needs **Stay in the tray**. |
 | **Start with Windows** | Starts in the tray. Needs **Stay in the tray**. |
 | **Create the switch shortcut** | Creates a shortcut that turns HDR on or off with one click. |
 
@@ -213,6 +220,11 @@ builds, `HDRSHIFT_DEMO` (`on`, `off`, `edit`, `settings`, `welcome`) opens a scr
 - **HDRShift is an independent project**, not affiliated with or endorsed by Microsoft, ASUS or any other brand. Their
   names belong to their owners.
 - **AI disclosure:** this app was developed with the help of AI tools.
+
+## ☕ Support the project
+
+HDRShift is free and made by a single person. If you like it and want to support it, you can buy me a coffee on
+**[Ko-fi](https://ko-fi.com/yesidrobayo)**. It's not required: telling whether it works with your monitor helps a lot too.
 
 ---
 

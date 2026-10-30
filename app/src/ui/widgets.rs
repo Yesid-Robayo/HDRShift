@@ -45,6 +45,7 @@ pub enum Glyph {
     Monitor,
     Apps,
     Shortcut,
+    Edit,
 }
 
 pub fn glyph(p: &egui::Painter, rect: Rect, g: Glyph, color: Color32) {
@@ -102,6 +103,14 @@ pub fn glyph(p: &egui::Painter, rect: Rect, g: Glyph, color: Color32) {
             p.line_segment([pos2(c.x - 0.06 * s, tip.y), tip], st);
             p.line_segment([pos2(tip.x, c.y + 0.06 * s), tip], st);
         }
+        Glyph::Edit => {
+            // lápiz inclinado: cuerpo y punta
+            let along = vec2(1.0, -1.0).normalized();
+            let across = vec2(1.0, 1.0).normalized() * (0.13 * s);
+            let (back, front) = (c + along * (-0.14 * s), c + along * (0.36 * s));
+            let tip = c + along * (-0.42 * s);
+            p.add(Shape::closed_line(vec![back + across, front + across, front - across, back - across, tip], st));
+        }
     }
 }
 
@@ -111,6 +120,15 @@ pub fn icon_button(ui: &mut Ui, g: Glyph, tooltip: &str) -> Response {
     let hover = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.12);
     let fill = theme::lerp(c().surface, c().surface_2, 0.4 + hover * 0.6);
     ui.painter().circle_filled(rect.center(), 18.0, fill);
+    glyph(ui.painter(), rect.shrink(9.0), g, theme::lerp(c().muted, c().text, hover));
+    resp.on_hover_cursor(CursorIcon::PointingHand).on_hover_text(tooltip)
+}
+
+/// Botón redondo con un icono, en un sitio fijo.
+pub fn icon_button_at(ui: &Ui, rect: Rect, id: Id, g: Glyph, tooltip: &str) -> Response {
+    let resp = ui.interact(rect, id, Sense::click());
+    let hover = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.12);
+    ui.painter().circle_filled(rect.center(), rect.width() / 2.0, theme::lerp(c().surface_2, c().border, hover));
     glyph(ui.painter(), rect.shrink(9.0), g, theme::lerp(c().muted, c().text, hover));
     resp.on_hover_cursor(CursorIcon::PointingHand).on_hover_text(tooltip)
 }
@@ -310,6 +328,11 @@ pub fn muted(ui: &mut Ui, text: impl Into<String>) {
 
 pub fn section_title(ui: &mut Ui, text: &str) {
     ui.add_space(6.0);
+    section_label(ui, text);
+}
+
+/// El título de sección sin el margen, para ponerlo en una fila.
+pub fn section_label(ui: &mut Ui, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase()).font(theme::semibold(11.5)).color(c().faint).extra_letter_spacing(1.2),
     );

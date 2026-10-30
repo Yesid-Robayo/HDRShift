@@ -12,7 +12,9 @@ mod widgets;
 
 use std::time::{Duration, Instant, SystemTime};
 
-use eframe::egui::{self, Align2, Color32, CornerRadius, Rect, Sense, Stroke, StrokeKind, TextureHandle, pos2, vec2};
+use eframe::egui::{
+    self, Align2, Color32, CornerRadius, Pos2, Rect, Sense, Stroke, StrokeKind, TextureHandle, pos2, vec2,
+};
 use hdrshift_core::command::Command;
 use hdrshift_core::config::{AppEntry, Config};
 use hdrshift_core::display::{Display, Displays, SystemDisplays, resolve};
@@ -341,7 +343,22 @@ fn home(ui: &mut egui::Ui, app: &mut App) -> Option<Page> {
         });
     }
 
-    widgets::section_title(ui, tr("Tus apps", "Your apps"));
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        widgets::section_label(ui, tr("Tus apps", "Your apps"));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let mut auto = app.cfg.auto_detect;
+            let tip = tr(
+                "Enciende el HDR cuando abras una de tus apps por cualquier camino, también desde Steam. HDRShift se queda en la bandeja.",
+                "Turns HDR on when you open one of your apps by any route, even from Steam. HDRShift stays in the tray.",
+            );
+            if widgets::toggle(ui, &mut auto).on_hover_text(tip).changed() {
+                set_auto_detect(app, auto);
+            }
+            ui.label(egui::RichText::new(tr("Encender solo", "Turn on by itself")).size(12.5).color(c().muted))
+                .on_hover_text(tip);
+        });
+    });
     let footer = 56.0;
     let apps = app.cfg.apps.clone();
     egui::ScrollArea::vertical().max_height(ui.available_height() - footer).auto_shrink([false, false]).show(
@@ -421,7 +438,12 @@ fn hero(ui: &mut egui::Ui, app: &mut App, d: &Display) {
     let (title, detail) = match (d.hdr_on, by_app, manual) {
         (false, ..) => (
             tr("HDR apagado", "HDR off").to_string(),
-            tr("Se encenderá con tus apps", "It turns on with your apps").to_string(),
+            if app.cfg.auto_detect {
+                tr("Se encenderá solo al abrir tus apps", "It will turn on by itself when you open your apps")
+            } else {
+                tr("Se enciende al abrir una app desde aquí", "It turns on when you open an app from here")
+            }
+            .to_string(),
         ),
         (true, Some(h), _) => {
             let name = &h.label;
@@ -523,7 +545,7 @@ fn app_card(ui: &mut egui::Ui, app: &mut App, entry: &AppEntry) -> CardAction {
     }
 
     let x = rect.left() + 72.0;
-    let text_width = rect.width() - 72.0 - 66.0;
+    let text_width = rect.width() - 72.0 - 112.0;
     let name = widgets::one_line(ui, entry.name.clone(), theme::semibold(15.5), c().text, text_width);
     let name_height = name.size().y;
     ui.painter().galley(pos2(x, rect.center().y - name_height - 1.0), name, c().text);
@@ -540,11 +562,13 @@ fn app_card(ui: &mut egui::Ui, app: &mut App, entry: &AppEntry) -> CardAction {
     } else if monitors.is_empty() {
         widgets::chip_at(ui, pos2(x, chip_y), tr("Sin monitor elegido", "No monitor chosen"), c().warn);
     } else {
-        let text = match monitors.as_slice() {
-            [d] => d.name.clone(),
-            many => trf!("{} monitores", "{} monitors", many.len()),
+        let text = if app.cfg.auto_detect {
+            tr("Se activa sola al abrirla", "Turns on by itself when opened")
+        } else {
+            tr("Ábrela con el botón o su acceso directo", "Open it with the button or its shortcut")
         };
-        ui.painter().text(pos2(x, chip_y), Align2::LEFT_CENTER, text, egui::FontId::proportional(12.5), c().muted);
+        let line = widgets::one_line(ui, text.to_string(), egui::FontId::proportional(12.5), c().muted, text_width);
+        ui.painter().galley(pos2(x, chip_y - line.size().y / 2.0), line, c().muted);
     }
 
     let button = Rect::from_center_size(pos2(rect.right() - 36.0, rect.center().y), vec2(40.0, 40.0));
@@ -559,15 +583,37 @@ fn app_card(ui: &mut egui::Ui, app: &mut App, entry: &AppEntry) -> CardAction {
             action = if running { CardAction::End } else { CardAction::Open };
         }
     }
+    let pencil = Rect::from_center_size(pos2(button.left() - 25.0, rect.center().y), vec2(34.0, 34.0));
+    if widgets::icon_button_at(ui, pencil, id.with("edit"), Glyph::Edit, tr("Editar", "Edit")).clicked() {
+        action = CardAction::Edit;
+    }
+    let on_button = |pos: Pos2| button.contains(pos) || pencil.contains(pos);
     if resp.clicked()
         && matches!(action, CardAction::None)
-        && !button.contains(resp.interact_pointer_pos().unwrap_or_default())
+        && !on_button(resp.interact_pointer_pos().unwrap_or_default())
     {
         action = CardAction::Edit;
     }
     resp.on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(tr("Editar", "Edit"));
     ui.add_space(2.0);
     action
+}
+
+/// Interruptor de la pantalla principal. La detección necesita un proceso vivo: al apagarla, la bandeja
+/// solo sigue si Windows la arranca.
+fn set_auto_detect(app: &mut App, on: bool) {
+    let mut cfg = app.cfg.clone();
+    cfg.auto_detect = on;
+    if !on {
+        cfg.stay_in_tray = cfg.start_with_windows;
+    }
+    let cfg = cfg.sanitized();
+    if save_config(&cfg) {
+        if cfg.stay_in_tray && !ipc::service_running() {
+            ipc::spawn_self("--service");
+        }
+        app.cfg = cfg;
+    }
 }
 
 /// Guarda la configuración y avisa al servicio si está en marcha.
