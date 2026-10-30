@@ -1,0 +1,55 @@
+# Al empujar una etiqueta vX.Y.Z: compila el exe en GitHub, publica su SHA256 y una atestación de origen (prueba
+# verificable de que el exe salió de este código y de este workflow). La release queda como borrador para revisarla.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Rust estable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Pruebas
+        run: cargo test --locked
+      - name: Compilar
+        run: cargo build --release --locked -p hdrshift
+      - name: Preparar archivos
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist | Out-Null
+          Copy-Item target\release\HDRShift.exe, LICENSE, THIRD_PARTY_NOTICES.txt dist\
+          $h = (Get-FileHash dist\HDRShift.exe -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", "$h  HDRShift.exe`n")
+      - name: Atestación de origen
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: dist/HDRShift.exe
+      - name: Crear la release (borrador)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $version = [regex]::Escape($env:TAG.TrimStart('v'))
+          function Notes($file) {
+            $text = (Get-Content $file -Raw -Encoding utf8) -replace "`r", ''
+            if ($text -notmatch "(?ms)^## $version\b[^\n]*\n(.*?)(?=^## |\z)") { throw "$file no tiene $env:TAG" }
+            $Matches[1].Trim()
+          }
+          "## English`n`n$(Notes CHANGELOG.md)`n`n## Español`n`n$(Notes CHANGELOG.es.md)" | Out-File dist\notes.md -Encoding utf8
+          gh release create $env:TAG dist\HDRShift.exe dist\SHA256SUMS.txt dist\LICENSE dist\THIRD_PARTY_NOTICES.txt --repo $env:GITHUB_REPOSITORY --draft --title "HDRShift $env:TAG" --notes-file dist\notes.md

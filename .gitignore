@@ -1,0 +1,31 @@
+# Compilación
+/target/
+**/*.rs.bk
+*.pdb
+
+# Datos de ejecución (viven en %APPDATA%\HDRShift, pero por si se usa HDRSHIFT_DATA_DIR dentro del repo)
+*.log
+config.json
+status.json
+ledger.json
+HDRShiftData/
+
+# Nunca subir claves, certificados ni secretos
+*.pem
+*.key
+*.cer
+*.crt
+*.pfx
+*.p12
+.env
+
+# Editores y sistema
+.vs/
+.idea/
+.vscode/
+*.user
+Thumbs.db
+Desktop.ini
+
+# Worktrees y datos locales de los agentes
+.claude/

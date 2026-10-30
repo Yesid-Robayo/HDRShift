@@ -1,0 +1,38 @@
+name: Informe de monitor / Monitor report
+description: Cuenta si HDRShift funciona con tu monitor / Tell whether HDRShift works with your monitor
+labels: [monitor]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Modelo del monitor / Monitor model
+      placeholder: "ASUS XG27AQDMES"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Versión de Windows / Windows version
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: input
+    id: connection
+    attributes:
+      label: Conexión y tarjeta gráfica / Connection and graphics card
+      placeholder: "DisplayPort, NVIDIA RTX 4070"
+  - type: dropdown
+    id: result
+    attributes:
+      label: Resultado / Result
+      options:
+        - Funciona / It works
+        - Funciona con problemas / It works with problems
+        - No funciona / It doesn't work
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notas / Notes
+      description: Qué pasó, y hdrshift.log si algo falló. / What happened, and hdrshift.log if something failed.
