@@ -20,7 +20,7 @@
 
 > [!WARNING]
 > **Gratis y de código abierto, sin garantía.** HDRShift lo hace una sola persona y se ofrece tal cual: puede que no funcione con tu
-> monitor. Si algo falla, abre un [*issue*](https://github.com/Yesid-Robayo/HDRShift/issues) y lo miramos.
+> monitor. Si tienes algún problema, abre un [*issue*](https://github.com/Yesid-Robayo/HDRShift/issues) y trato de ayudarte.
 >
 > **Beta.** Se ha probado en un solo monitor (mira el [estado de las pruebas](#-estado-de-las-pruebas)).
 
