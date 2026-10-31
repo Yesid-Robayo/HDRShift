@@ -19,8 +19,8 @@
 </div>
 
 > [!WARNING]
-> **Personal project: use it at your own risk.** HDRShift was made for its author's own use and is shared as is, with no
-> warranty. It may not work with your monitor, and any problem that comes from using it is your responsibility.
+> **Personal project, no warranty.** I made HDRShift for my own use and I'm sharing it in case it's useful to someone else. It's offered
+> as is, and it may not work with your monitor.
 >
 > **Beta.** It has been tested on a single monitor (see the [test status](#-test-status)).
 
@@ -256,8 +256,7 @@ HDRShift is free and made by a single person. If you like it and want to support
 
 ## 📄 License and contributions
 
-- HDRShift is licensed under the **[MIT License](LICENSE)**. It is provided **as is, without any warranty**, and you use
-  it **at your own risk**.
+- HDRShift is licensed under the **[MIT License](LICENSE)**. It is provided **as is, without any warranty**.
 - It's a personal project, made for its author's own use and shared in case it's useful to someone else: there's no
   support commitment, and *issues* get an answer when there's time.
 - **Pull requests are not accepted** (they are closed automatically). Bugs, ideas and monitor reports go in an *issue*;
