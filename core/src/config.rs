@@ -7,6 +7,7 @@ use crate::i18n::Language;
 
 const MAX_APPS: usize = 512;
 const MAX_NAME: usize = 48;
+const MAX_EXTRA_WAIT: u32 = 30;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -29,6 +30,10 @@ pub struct AppEntry {
     pub args: String,
     /// Otro proceso que cuenta como esta app, para los lanzadores que abren el juego en otra carpeta.
     pub watch: String,
+    /// Encender el HDR al verla abierta, aunque no se haya usado su acceso directo.
+    pub auto: bool,
+    /// Segundos de más antes de abrirla, para monitores que tardan en cambiar de señal.
+    pub extra_wait: u32,
     /// Monitores donde encender el HDR (`Display::id`).
     pub monitors: Vec<String>,
 }
@@ -39,10 +44,8 @@ pub struct Config {
     pub apps: Vec<AppEntry>,
     pub language: Language,
     pub theme: ThemeChoice,
-    /// Seguir en la bandeja sin sesiones activas. Apagado, no queda ningún proceso al terminar.
+    /// Seguir en la bandeja sin sesiones activas.
     pub stay_in_tray: bool,
-    /// Encender el HDR al detectar una app abierta, aunque no se haya usado el acceso directo.
-    pub auto_detect: bool,
     pub start_with_windows: bool,
 }
 
@@ -53,7 +56,6 @@ impl Default for Config {
             language: Language::Spanish,
             theme: ThemeChoice::System,
             stay_in_tray: false,
-            auto_detect: false,
             start_with_windows: false,
         }
     }
@@ -105,15 +107,30 @@ impl Config {
         let mut seen = std::collections::HashSet::new();
         for (i, a) in self.apps.iter_mut().enumerate() {
             a.name = a.name.chars().filter(|c| !c.is_control()).take(MAX_NAME).collect();
+            a.extra_wait = a.extra_wait.min(MAX_EXTRA_WAIT);
             // basado en la posición: tiene que salir igual en la ventana y en el servicio
             if a.id.is_empty() || seen.contains(&a.id) {
                 a.id = format!("app{i}");
             }
             seen.insert(a.id.clone());
         }
-        // las dos opciones necesitan un proceso que siga vivo
-        self.stay_in_tray |= self.auto_detect || self.start_with_windows;
         self
+    }
+
+    /// Alguna app se enciende sola.
+    pub fn any_auto(&self) -> bool {
+        self.apps.iter().any(|a| a.auto)
+    }
+
+    /// Una app que se enciende sola necesita el servicio desde el principio: sin él, nadie la vería abrirse.
+    pub fn starts_with_windows(&self) -> bool {
+        self.start_with_windows || self.any_auto()
+    }
+
+    /// El servicio debe seguir en marcha aunque no haya ninguna sesión. Si todo esto es falso, no queda
+    /// ningún proceso al terminar.
+    pub fn needs_tray(&self) -> bool {
+        self.stay_in_tray || self.start_with_windows || self.any_auto()
     }
 }
 
@@ -178,13 +195,22 @@ mod tests {
     #[test]
     fn nothing_stays_resident_by_default() {
         let c = Config::default();
-        assert!(!c.stay_in_tray && !c.auto_detect && !c.start_with_windows);
+        assert!(!c.needs_tray());
     }
 
     #[test]
-    fn options_that_need_the_tray_turn_it_on() {
-        assert!(Config { auto_detect: true, ..Default::default() }.sanitized().stay_in_tray);
-        assert!(Config { start_with_windows: true, ..Default::default() }.sanitized().stay_in_tray);
+    fn options_that_need_a_running_process_keep_it() {
+        assert!(Config { stay_in_tray: true, ..Default::default() }.needs_tray());
+        assert!(Config { start_with_windows: true, ..Default::default() }.needs_tray());
+        let apps = vec![AppEntry { auto: true, ..Default::default() }];
+        assert!(Config { apps, ..Default::default() }.needs_tray());
+    }
+
+    #[test]
+    fn an_app_that_turns_on_by_itself_needs_to_start_with_windows() {
+        let apps = vec![AppEntry { auto: true, ..Default::default() }];
+        assert!(Config { apps, ..Default::default() }.starts_with_windows());
+        assert!(!Config::default().starts_with_windows());
     }
 
     #[test]

@@ -13,7 +13,8 @@ Primera versión. Es un proyecto personal en beta: **se usa bajo tu propio riesg
 
 ### HDR por app
 
-- **Añade tus apps**, elige sus monitores y crea un acceso directo con el icono de la app.
+- **Añade tus apps**, incluso eligiendo una que ya esté abierta, elige sus monitores y crea un acceso directo con el icono de
+  la app.
 - **HDR antes que la app:** se enciende y se comprueba antes de abrirla, porque muchos juegos solo lo miran al arrancar.
 - **Vuelve como estaba:** al cerrarse la app, el HDR regresa a su estado anterior. Si ya estaba encendido, no se toca.
 - **Lanzadores:** un juego cuenta como abierto mientras haya algo de su carpeta en marcha, así que un lanzador puede abrirlo y
@@ -23,7 +24,9 @@ Primera versión. Es un proyecto personal en beta: **se usa bajo tu propio riesg
 ### Interruptor y detección
 
 - **Interruptor manual** en la ventana, en la bandeja y como acceso directo de un clic.
-- **Detección automática opcional** para apps abiertas desde Steam u otros lanzadores. Viene apagada.
+- **Detección automática opcional, por app,** para apps abiertas desde otros lanzadores. Viene apagada.
+- **Aviso de Windows** cuando el HDR se enciende para una app.
+- **Espera ajustable por app,** para monitores que tardan más en cambiar.
 - **Nada residente por defecto:** el proceso sale solo cuando ninguna app necesita HDR.
 
 ### Seguridad

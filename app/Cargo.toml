@@ -12,7 +12,8 @@ name = "HDRShift"
 path = "src/main.rs"
 
 [dependencies]
-eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts"] }
+# Sin `clipboard`, copiar y pegar funcionan dentro de la ventana pero nunca llegan a Windows
+eframe = { version = "0.37.0", default-features = false, features = ["clipboard", "glow", "default_fonts"] }
 hdrshift-core = { version = "0.1.0", path = "../core" }
 raw-window-handle = "0.6"
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_Com", "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Threading", "Win32_UI_Controls_Dialogs", "Win32_UI_HiDpi", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }

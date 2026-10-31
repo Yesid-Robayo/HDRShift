@@ -7,6 +7,10 @@ const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const VALUE: &str = "HDRShift";
 
 pub fn apply(enabled: bool) {
+    // con una carpeta de datos de prueba no se toca el inicio de Windows del usuario
+    if std::env::var_os("HDRSHIFT_DATA_DIR").is_some() {
+        return;
+    }
     if !enabled {
         registry::delete_user_value(RUN_KEY, VALUE);
         return;

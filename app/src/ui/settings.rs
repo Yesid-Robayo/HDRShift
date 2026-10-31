@@ -70,7 +70,7 @@ impl Settings {
             return Nav::Home;
         }
         self.poll_shortcut(ui);
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("settings").auto_shrink([false, false]).show(ui, |ui| {
             self.look(ui);
             self.background(ui);
             self.shortcuts(ui);
@@ -88,16 +88,9 @@ impl Settings {
         if self.cfg == self.original {
             return;
         }
-        let wanted = self.cfg.clone().sanitized();
-        let tray_changed = wanted.stay_in_tray != self.original.stay_in_tray;
-        self.cfg = wanted;
         if super::save_config(&self.cfg) {
             self.original = self.cfg.clone();
             self.changed = true;
-            crate::autostart::apply(self.cfg.start_with_windows);
-            if tray_changed && self.cfg.stay_in_tray {
-                ipc::spawn_self("--service");
-            }
             ui.ctx().request_repaint();
         }
     }
@@ -134,37 +127,24 @@ impl Settings {
         let cfg = &mut self.cfg;
         widgets::section_title(ui, tr("En segundo plano", "In the background"));
         widgets::card(ui, |ui| {
-            let before = cfg.stay_in_tray;
             widgets::setting_row(
                 ui,
                 tr("Quedarse en la bandeja", "Stay in the tray"),
                 tr(
-                    "El interruptor siempre a mano. Apagado, HDRShift no deja ningún proceso cuando no hay apps abiertas.",
-                    "The switch always at hand. Off, HDRShift leaves no process running when no apps are open.",
+                    "El interruptor siempre a mano. Apagado, HDRShift no deja ningún proceso sin apps abiertas, salvo que una tenga Encender solo o actives Iniciar con Windows.",
+                    "The switch always at hand. Off, HDRShift leaves no process running with no apps open, unless one has Turn on by itself or Start with Windows is on.",
                 ),
                 |ui| {
                     widgets::toggle(ui, &mut cfg.stay_in_tray);
                 },
             );
-            if before && !cfg.stay_in_tray {
-                cfg.auto_detect = false;
-                cfg.start_with_windows = false;
-            }
-            widgets::setting_row(
-                ui,
-                tr("Detectar mis apps solo", "Detect my apps on its own"),
-                tr(
-                    "Enciende el HDR aunque las abras desde Steam u otro lanzador. Algunos juegos deciden su HDR al arrancar: si no lo notan, reinícialos o usa el acceso directo.",
-                    "Turns HDR on even if you open them from Steam or another launcher. Some games choose HDR at startup: if they miss it, restart them or use the shortcut.",
-                ),
-                |ui| {
-                    widgets::toggle(ui, &mut cfg.auto_detect);
-                },
-            );
             widgets::setting_row(
                 ui,
                 tr("Iniciar con Windows", "Start with Windows"),
-                tr("Arranca en la bandeja, sin abrir la ventana.", "Starts in the tray, without opening the window."),
+                tr(
+                    "Arranca en la bandeja, sin abrir la ventana. Si una app tiene Encender solo, arranca igualmente.",
+                    "Starts in the tray, without opening the window. If an app has Turn on by itself, it starts anyway.",
+                ),
                 |ui| {
                     widgets::toggle(ui, &mut cfg.start_with_windows);
                 },
@@ -365,7 +345,9 @@ fn uninstall(ui: &egui::Ui, delete_data: bool) {
     let mut cfg = Config::load();
     cfg.start_with_windows = false;
     cfg.stay_in_tray = false;
-    cfg.auto_detect = false;
+    for app in &mut cfg.apps {
+        app.auto = false;
+    }
     let _ = cfg.save();
     crate::autostart::apply(false);
     ipc::send(&Command::Quit);

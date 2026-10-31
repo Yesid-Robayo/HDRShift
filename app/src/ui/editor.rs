@@ -9,11 +9,12 @@ use hdrshift_core::config::{AppEntry, Config, new_id};
 use hdrshift_core::display::{Display, resolve};
 use hdrshift_core::i18n::tr;
 use hdrshift_core::shortcut::{self, Link};
+use hdrshift_core::watch::{self, OpenApp};
 use hdrshift_core::{log, trf};
 
 use super::theme::{self, c};
 use super::widgets;
-use super::{Nav, dialogs, page_header, save_config};
+use super::{Nav, dialogs, exe_icons, page_header, save_config};
 use crate::ipc;
 
 type Pick = Receiver<Option<String>>;
@@ -24,6 +25,8 @@ pub struct Editor {
     owner: isize,
     pick_exe: Option<Pick>,
     pick_link: Option<Pick>,
+    /// Lista de apps abiertas, mientras se está eligiendo una.
+    open_apps: Option<Vec<OpenApp>>,
     advanced: bool,
     confirm_delete: bool,
     error: Option<String>,
@@ -65,6 +68,50 @@ fn poll(slot: &mut Option<Pick>, ui: &egui::Ui) -> Option<String> {
     }
 }
 
+/// Lista de las apps abiertas. Devuelve la que se pulse.
+fn open_app_list(ui: &mut egui::Ui, list: &[OpenApp], icons: &mut exe_icons::Cache) -> Option<OpenApp> {
+    if list.is_empty() {
+        widgets::muted(
+            ui,
+            tr(
+                "No hay ninguna app abierta. Abre el juego y vuelve aquí.",
+                "No apps are open. Open the game and come back.",
+            ),
+        );
+        return None;
+    }
+    widgets::muted(
+        ui,
+        tr(
+            "¿No sale? Abre el juego y vuelve a pulsar el botón.",
+            "Not here? Open the game and press the button again.",
+        ),
+    );
+    let mut picked = None;
+    for app in list {
+        let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::click());
+        let hover = ui.ctx().animate_bool_with_time(resp.id, resp.hovered(), 0.1);
+        ui.painter().rect_filled(rect, egui::CornerRadius::same(10), theme::alpha(c().surface_2, hover));
+        let icon = egui::Rect::from_center_size(egui::pos2(rect.left() + 24.0, rect.center().y), vec2(28.0, 28.0));
+        let ctx = ui.ctx().clone();
+        if let Some(texture) = icons.get(&ctx, &app.exe) {
+            let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+            ui.painter().image(texture.id(), icon, uv, egui::Color32::WHITE);
+        }
+        let x = rect.left() + 48.0;
+        let width = rect.width() - 56.0;
+        let title = widgets::one_line(ui, app.title.clone(), theme::semibold(14.0), c().text, width);
+        ui.painter().galley(egui::pos2(x, rect.top() + 5.0), title, c().text);
+        let file = std::path::Path::new(&app.exe).file_name().map(|n| n.to_string_lossy().into_owned());
+        let file = widgets::one_line(ui, file.unwrap_or_default(), egui::FontId::proportional(12.0), c().muted, width);
+        ui.painter().galley(egui::pos2(x, rect.top() + 25.0), file, c().muted);
+        if resp.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+            picked = Some(app.clone());
+        }
+    }
+    picked
+}
+
 /// Crea un acceso directo a este mismo exe.
 pub fn write_shortcut(path: &str, args: &str, description: &str, icon: Option<&str>) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
@@ -90,12 +137,13 @@ impl Editor {
             ..Default::default()
         });
         Self {
-            advanced: !entry.args.is_empty() || !entry.watch.is_empty(),
+            advanced: !entry.args.is_empty() || !entry.watch.is_empty() || entry.extra_wait > 0,
             entry,
             is_new,
             owner,
             pick_exe: None,
             pick_link: None,
+            open_apps: None,
             confirm_delete: false,
             error: None,
             done: None,
@@ -153,7 +201,13 @@ impl Editor {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, monitors: &[Display], cfg: &mut Config) -> Nav {
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        monitors: &[Display],
+        cfg: &mut Config,
+        icons: &mut exe_icons::Cache,
+    ) -> Nav {
         let title = if self.is_new { tr("Añadir app", "Add app") } else { tr("Editar app", "Edit app") };
         if page_header(ui, title) {
             return Nav::Home;
@@ -171,7 +225,7 @@ impl Editor {
 
         let mut nav = Nav::Stay;
         let footer = 62.0;
-        egui::ScrollArea::vertical().max_height(ui.available_height() - footer).auto_shrink([false, false]).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("editor").max_height(ui.available_height() - footer).auto_shrink([false, false]).show(ui, |ui| {
             widgets::card(ui, |ui| {
                 widgets::field_label(ui, tr("Programa", "Program"));
                 ui.horizontal(|ui| {
@@ -186,6 +240,24 @@ impl Editor {
                         ));
                     }
                 });
+                let label = if self.open_apps.is_some() {
+                    tr("Ocultar las apps abiertas", "Hide open apps")
+                } else {
+                    tr("Elegir de las apps abiertas", "Pick from open apps")
+                };
+                if widgets::secondary_button(ui, label, ui.available_width()).clicked() {
+                    self.open_apps = if self.open_apps.is_some() { None } else { Some(watch::open_apps()) };
+                }
+                if let Some(list) = self.open_apps.clone()
+                    && let Some(picked) = open_app_list(ui, &list, icons)
+                {
+                    self.entry.exe = picked.exe;
+                    if self.entry.name.trim().is_empty() {
+                        self.entry.name = picked.title.chars().take(48).collect();
+                    }
+                    self.open_apps = None;
+                    self.error = None;
+                }
                 ui.add_space(4.0);
                 widgets::field_label(ui, tr("Nombre", "Name"));
                 widgets::text_field(ui, &mut self.entry.name, f32::INFINITY, 48, "");
@@ -215,6 +287,20 @@ impl Editor {
                 }
             });
 
+            widgets::card(ui, |ui| {
+                widgets::setting_row(
+                    ui,
+                    tr("Encender solo", "Turn on by itself"),
+                    tr(
+                        "Enciende el HDR justo después de que se abra, la abras como la abras. Si un juego lo necesita antes de arrancar, usa el botón o su acceso directo.",
+                        "Turns HDR on right after it opens, however you open it. If a game needs it before it starts, use the button or its shortcut.",
+                    ),
+                    |ui| {
+                        widgets::toggle(ui, &mut self.entry.auto);
+                    },
+                );
+            });
+
             let label = if self.advanced { tr("Ocultar opciones avanzadas", "Hide advanced options") } else { tr("Opciones avanzadas", "Advanced options") };
             if ui.link(label).clicked() {
                 self.advanced = !self.advanced;
@@ -229,6 +315,19 @@ impl Editor {
                     widgets::muted(ui, tr(
                         "Solo hace falta si su lanzador abre el juego desde otra carpeta y el HDR se apaga antes de tiempo.",
                         "Only needed if its launcher opens the game from another folder and HDR turns off too soon.",
+                    ));
+                    ui.add_space(4.0);
+                    widgets::field_label(ui, tr("Espera antes de abrirla", "Wait before opening it"));
+                    ui.horizontal_wrapped(|ui| {
+                        for (seconds, label) in [(0, tr("Normal", "Normal")), (2, "+2 s"), (5, "+5 s")] {
+                            if widgets::choice_chip(ui, label, self.entry.extra_wait == seconds).clicked() {
+                                self.entry.extra_wait = seconds;
+                            }
+                        }
+                    });
+                    widgets::muted(ui, tr(
+                        "Súbela si el juego se abre antes de que tu monitor termine de cambiar y no detecta el HDR.",
+                        "Raise it if the game opens before your monitor finishes switching and doesn't detect HDR.",
                     ));
                 });
             }

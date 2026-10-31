@@ -69,7 +69,6 @@ pub enum MonitorResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonitorOutcome {
-    pub wanted: String,
     pub name: String,
     pub result: MonitorResult,
 }
@@ -152,11 +151,7 @@ impl<D: Displays, S: LedgerStore> Engine<D, S> {
             Err(code) => {
                 log::error(&format!("no se pudieron leer los monitores: código {code}"));
                 self.add_hold(kind, label, BTreeSet::new());
-                let failed = |id: &String| MonitorOutcome {
-                    wanted: id.clone(),
-                    name: String::new(),
-                    result: MonitorResult::Failed(code),
-                };
+                let failed = |_: &String| MonitorOutcome { name: String::new(), result: MonitorResult::Failed(code) };
                 return wanted.iter().map(failed).collect();
             }
         };
@@ -166,14 +161,14 @@ impl<D: Displays, S: LedgerStore> Engine<D, S> {
             let Some(display) = resolve(&list, id) else {
                 log::warn(&format!("{label}: monitor no encontrado"));
                 let result = MonitorResult::NotFound;
-                outcomes.push(MonitorOutcome { wanted: id.clone(), name: String::new(), result });
+                outcomes.push(MonitorOutcome { name: String::new(), result });
                 continue;
             };
             let result = self.turn_on(display);
             if matches!(result, MonitorResult::TurnedOn | MonitorResult::AlreadyOn) {
                 monitors.insert(display.id.clone());
             }
-            outcomes.push(MonitorOutcome { wanted: id.clone(), name: display.name.clone(), result });
+            outcomes.push(MonitorOutcome { name: display.name.clone(), result });
         }
         self.add_hold(kind, label, monitors);
         self.settle();
@@ -185,6 +180,7 @@ impl<D: Displays, S: LedgerStore> Engine<D, S> {
             return MonitorResult::NoHdr;
         }
         if display.hdr_on {
+            log::info(&format!("el HDR ya estaba encendido en {}", display.name));
             return MonitorResult::AlreadyOn;
         }
         // Primero la deuda, después el cambio: si el proceso muere en medio, la recuperación sabe qué hacer.
@@ -424,6 +420,22 @@ mod tests {
         assert!(on(&w, A), "la segunda app sigue abierta");
         e.release(&app("b"));
         assert!(!on(&w, A));
+    }
+
+    /// Otro programa encendió el HDR y lo apagó al cerrarse la app. Si ella vuelve hay que encenderlo,
+    /// y esta vez es HDRShift quien debe apagarlo.
+    #[test]
+    fn asking_again_recovers_the_hdr_another_program_turned_off() {
+        let w = world();
+        w.0.on.borrow_mut().insert(A.to_string());
+        let mut e = engine(&w);
+        assert_eq!(e.hold(app("juego"), "Juego", &ids(&[A]))[0].result, MonitorResult::AlreadyOn);
+        w.0.on.borrow_mut().remove(A);
+        assert_eq!(e.hold(app("juego"), "Juego", &ids(&[A]))[0].result, MonitorResult::TurnedOn);
+        assert!(on(&w, A));
+        e.release(&app("juego"));
+        assert!(!on(&w, A));
+        assert!(e.is_idle());
     }
 
     /// El caso real del registro: abrir otra vez la misma app no convierte "encendido" en el estado original.

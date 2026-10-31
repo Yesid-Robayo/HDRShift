@@ -12,13 +12,14 @@ fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-fn read_string(root: HKEY, key: &str, name: &str) -> Option<String> {
+/// Cadena de `HKEY_LOCAL_MACHINE`.
+pub fn machine_string(key: &str, name: &str) -> Option<String> {
     let (key, name) = (wide(key), wide(name));
     let mut buf = [0u16; 512];
     let mut size = size_of_val(&buf) as u32;
     let r = unsafe {
         RegGetValueW(
-            root,
+            HKEY_LOCAL_MACHINE,
             key.as_ptr(),
             name.as_ptr(),
             RRF_RT_REG_SZ,
@@ -32,16 +33,6 @@ fn read_string(root: HKEY, key: &str, name: &str) -> Option<String> {
     }
     let len = buf.iter().position(|c| *c == 0).unwrap_or(buf.len());
     Some(String::from_utf16_lossy(&buf[..len]))
-}
-
-/// Cadena de `HKEY_LOCAL_MACHINE`.
-pub fn machine_string(key: &str, name: &str) -> Option<String> {
-    read_string(HKEY_LOCAL_MACHINE, key, name)
-}
-
-/// Cadena de `HKEY_CURRENT_USER`.
-pub fn user_string(key: &str, name: &str) -> Option<String> {
-    read_string(HKEY_CURRENT_USER, key, name)
 }
 
 /// Número de `HKEY_CURRENT_USER`.

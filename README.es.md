@@ -56,14 +56,16 @@ vuelve como estaba, y si ya estaba encendido, HDRShift no lo toca.
   de esa carpeta.
 - **Varias apps a la vez:** el HDR sigue encendido hasta que se cierra la última.
 - **Interruptor manual:** enciende el HDR hasta que tú digas, desde la ventana, la bandeja o un acceso directo de un clic.
-- **Detección automática opcional:** enciende el HDR aunque abras la app desde Steam u otro lanzador. Viene apagada.
+- **Detección automática opcional, por app:** enciende el HDR aunque la abra otro lanzador. Viene apagada.
+- **Fácil de añadir:** elige una app que ya esté abierta, sin tener que buscar su exe.
 - **No se le olvida:** tras un cuelgue, un apagón o un monitor desconectado, deja el HDR como estaba en cuanto puede.
 - **Tema oscuro y claro**, o el mismo de Windows. **Español e inglés.**
 - **Portable y ligero:** un solo exe de unos 5 MB, sin instalador ni runtime.
 
 ## 🔍 Cómo funciona
 
-1. Abres el acceso directo. HDRShift enciende el HDR en los monitores de esa app y comprueba que Windows lo cambió de verdad.
+1. Abres el acceso directo. HDRShift enciende el HDR en los monitores de esa app, comprueba que Windows lo cambió de verdad y
+   te lo confirma con un aviso de Windows.
 2. Espera un momento a que el monitor cambie de señal, porque muchos juegos solo miran el HDR al arrancar, y abre la app.
 3. Se queda en la bandeja mientras la app está abierta, con unos 4 MB de memoria.
 4. Al cerrarse la app espera unos 5 segundos, por si un lanzador está pasando el relevo al juego, deja el HDR como estaba y
@@ -93,7 +95,9 @@ no toca la gestión automática de color.
 | Abrir y cerrar una app, HDR restaurado idéntico | ✅ Prueba real |
 | Dos apps a la vez, el mismo acceso dos veces | ✅ Prueba real |
 | Lanzador que abre el juego y se cierra | ✅ Prueba real |
-| Proceso matado, recuperación al iniciar sesión, cerrar sesión con una app abierta | ✅ Prueba real (cierre de sesión simulado) |
+| Un juego real, con su acceso directo y con **Encender solo** | ✅ Prueba real |
+| Proceso matado, recuperación al iniciar sesión | ✅ Prueba real |
+| Reiniciar el PC con una app abierta, arrancar con Windows | ✅ Prueba real |
 | Pantalla apagada | ✅ Prueba real |
 | Detección automática | ✅ Prueba real |
 
@@ -101,11 +105,11 @@ no toca la gestión automática de color.
 |---|---|
 | Windows 10 y Windows 11 anterior a 24H2 | Usa la petición antigua de Windows; debería funcionar, sin comprobar |
 | Varios monitores a la vez, dos monitores iguales | Solo pruebas automáticas |
-| Escala de pantalla superior al 100 % | |
-| Juegos con antitrampas | Podrían ocultar su proceso a la detección |
+| Escala superior al 100 % en una pantalla real | Simulada al 150 % |
+| Juegos con antitrampas | Funcionó en una sesión de un juego; otros podrían ocultar su proceso a la detección |
 
 Medido en un PC: unos 0,3 s en cambiar el HDR; 3,6 MB de memoria privada y 0,03 % de CPU con una app abierta; 2,1 MB y
-0,02 % de CPU en la bandeja con la detección activa. La ventana usa unos 75 MB, solo mientras está abierta.
+0,1 % de CPU en la bandeja esperando una app con **Encender solo**, que nota en medio segundo. La ventana usa unos 85 MB, solo mientras está abierta.
 
 ## 📦 Instalar
 
@@ -130,15 +134,21 @@ Para desinstalar: en los ajustes, pulsa **Desinstalar…**, elige si conservas t
 ## 🎮 Cómo se usa
 
 1. Abre HDRShift. La tarjeta de arriba muestra si tu monitor tiene el HDR encendido, con un interruptor para cambiarlo a mano.
-2. Pulsa **Añadir app**, elige el exe del juego y pulsa **Guardar**. Tus monitores con HDR ya vienen marcados.
+2. Pulsa **Añadir app**, elige el exe del juego o búscalo en **Elegir de las apps abiertas**, y pulsa **Guardar**. Tus
+   monitores con HDR ya vienen marcados.
 3. Pulsa el lápiz de la app y luego **Crear acceso directo**.
 4. A partir de ahora, abre tu juego desde ese acceso directo.
 
 El botón de reproducir de cada tarjeta hace lo mismo. Con una sesión activa se convierte en un botón de parar, que termina la
 sesión y deja el HDR como estaba sin cerrar la app.
 
-¿Prefieres olvidarte? Activa **Encender solo** encima de tus apps: el HDR se enciende las abras como las abras, incluso desde
-Steam. HDRShift se queda entonces en la bandeja.
+¿Prefieres olvidarte? Activa **Encender solo** en la tarjeta de una app: el HDR se enciende la abras como la abras.
+Mientras alguna app lo tenga activo, HDRShift arranca con Windows y se queda en la bandeja.
+
+> [!IMPORTANT]
+> El botón de reproducir y el acceso directo encienden el HDR **antes** de abrir el juego. **Encender solo**
+> solo puede hacerlo **después**, porque el juego lo abre otro programa: HDRShift lo nota en medio segundo. Si un juego necesita
+> el HDR antes de arrancar, usa una de esas dos, o enciende el interruptor manual antes de abrirlo.
 
 Para cambiar una app o quitarla, pulsa su lápiz.
 
@@ -151,25 +161,40 @@ deja el HDR como estaba.
 |---|---|
 | **Tema** | Como Windows, oscuro o claro. |
 | **Idioma** | Español o inglés. |
-| **Quedarse en la bandeja** | Deja el interruptor a mano. Apagado, HDRShift no deja nada en marcha sin apps abiertas. |
-| **Detectar mis apps solo** | Lo mismo que el interruptor **Encender solo** encima de tus apps. Necesita **Quedarse en la bandeja**. |
-| **Iniciar con Windows** | Arranca en la bandeja. Necesita **Quedarse en la bandeja**. |
+| **Quedarse en la bandeja** | Deja el interruptor a mano. Apagado, HDRShift no deja nada en marcha sin apps abiertas, salvo que una tenga **Encender solo** o actives **Iniciar con Windows**. |
+| **Iniciar con Windows** | Arranca en la bandeja. También ocurre si una app tiene **Encender solo**. |
 | **Crear acceso directo del interruptor** | Crea un acceso que enciende o apaga el HDR de un clic. |
 
-En una app, **Opciones avanzadas** tiene sus argumentos y otro proceso que cuenta como la app, para los lanzadores que abren
-el juego desde otra carpeta.
+En una app, **Opciones avanzadas** tiene sus argumentos, otro proceso que cuenta como la app, para los lanzadores que abren el
+juego desde otra carpeta y la espera antes de abrirla. Sube la espera si el juego se abre antes de que tu
+monitor termine de cambiar.
 
 Tus datos están en `%APPDATA%\HDRShift`: `config.json` (apps y ajustes), `ledger.json` (lo que queda por restaurar),
 `status.json` (lo que muestra la ventana) y `hdrshift.log`.
 
 ## ❓ Preguntas frecuentes
 
+**¿Es seguro?**
+HDRShift no usa internet, no pide administrador y no instala drivers ni servicios. Solo cambia el ajuste de HDR de Windows y
+guarda sus datos en tu carpeta de usuario. En [SECURITY.md](SECURITY.md) está lo que hace y lo que no hace.
+
 **¿Esto puede dañar mi monitor?**
 No. HDRShift solo cambia el ajuste de HDR de Windows, el mismo interruptor de Configuración o `Win + Alt + B`.
 
+**¿Me pueden banear en juegos online?**
+El riesgo es muy bajo, porque HDRShift no toca el juego: no inyecta nada, no lee su memoria ni cambia sus archivos. Solo cambia
+el ajuste de HDR de Windows y consulta los procesos y sus rutas, como el Administrador de tareas. Los antitrampas no publican
+sus reglas, así que nadie puede prometer el 100 %, y lo usas bajo tu propio riesgo. En juegos con antitrampas, deja que los abra
+su lanzador y usa **Encender solo** o el interruptor manual: el botón de abrir y los accesos directos hacen que sea
+HDRShift quien los abra.
+
 **Mi juego no detecta el HDR.**
-Muchos juegos lo deciden al arrancar. Usa el acceso directo, que enciende el HDR primero. Con la detección automática, el
-juego puede estar arrancando ya cuando se enciende: reinícialo una vez.
+Muchos juegos lo deciden al arrancar. Usa el botón de reproducir o el acceso directo, que encienden el HDR
+primero. Si aun así falla, sube la espera en **Opciones avanzadas**: quizá tu monitor necesite más tiempo. Con **Encender solo**,
+el juego ya está arrancando cuando se enciende: reinícialo una vez.
+
+**No sé dónde está el exe del juego.**
+Abre el juego y luego pulsa **Añadir app** y **Elegir de las apps abiertas**.
 
 **El HDR se apaga con el juego abierto.**
 Seguramente su lanzador lo abrió desde otra carpeta. En la app, entra en **Opciones avanzadas** y escribe el nombre del
@@ -178,6 +203,7 @@ proceso del juego, por ejemplo `game.exe`.
 **El HDR se quedó encendido.**
 Abre HDRShift: termina lo que hubiera quedado pendiente. Si aparece la tarjeta **HDR por restaurar**, Windows todavía no le
 deja; lo seguirá intentando solo. El motivo está en `hdrshift.log`. Si ese monitor ya no existe, pulsa **Olvidar**.
+También puedes apagar el HDR a mano con `Win + Alt + B` o en **Configuración › Pantalla**.
 
 **¿Es portable?**
 Sí. En los ajustes, pulsa **Guardar los datos junto al exe (portable)**: tus datos pasan a una carpeta `HDRShiftData` junto al

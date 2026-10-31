@@ -18,6 +18,8 @@ adler2 2.0.1                       0BSD OR MIT OR Apache-2.0
                                    https://github.com/oyvindln/adler2
 ahash 0.8.12                       MIT OR Apache-2.0
                                    https://github.com/tkaitchuck/ahash
+arboard 3.7.0                      MIT OR Apache-2.0
+                                   https://github.com/1Password/arboard
 arrayvec 0.7.8                     MIT OR Apache-2.0
                                    https://github.com/bluss/arrayvec
 bitflags 2.13.2                    MIT OR Apache-2.0
@@ -30,6 +32,8 @@ byteorder-lite 0.1.0               Unlicense OR MIT
                                    https://github.com/image-rs/byteorder-lite
 cfg-if 1.0.5                       MIT OR Apache-2.0
                                    https://github.com/rust-lang/cfg-if
+clipboard-win 5.4.3                BSL-1.0
+                                   https://github.com/DoumanAsh/clipboard-win
 color 0.3.3                        Apache-2.0 OR MIT
                                    https://github.com/linebender/color
 crc32fast 1.5.3                    MIT OR Apache-2.0
@@ -58,6 +62,8 @@ epaint 0.37.0                      MIT OR Apache-2.0
                                    https://github.com/emilk/egui/tree/main/crates/epaint
 epaint_default_fonts 0.37.0        (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0
                                    https://github.com/emilk/egui/tree/main/crates/epaint_default_fonts
+error-code 3.4.0                   BSL-1.0
+                                   https://github.com/DoumanAsh/error-code
 euclid 0.22.14                     MIT OR Apache-2.0
                                    https://github.com/servo/euclid
 fdeflate 0.3.7                     MIT OR Apache-2.0

@@ -13,7 +13,8 @@ First version. It's a personal project in beta: **you use it at your own risk** 
 
 ### HDR per app
 
-- **Add your apps**, choose their monitors and create a shortcut with the app's own icon.
+- **Add your apps**, even by picking one that's already open, choose their monitors and create a shortcut with the app's
+  own icon.
 - **HDR before the app:** it turns on and is verified before opening the app, since many games read it only at startup.
 - **Back to how it was:** when the app closes, HDR returns to its previous state. If it was already on, it's left alone.
 - **Launchers:** a game counts as open while anything from its folder is running, so a launcher can open it and exit.
@@ -22,7 +23,9 @@ First version. It's a personal project in beta: **you use it at your own risk** 
 ### Switch and detection
 
 - **Manual switch** in the window, in the tray and as a one-click shortcut.
-- **Optional automatic detection** for apps opened from Steam or other launchers. Off by default.
+- **Optional automatic detection, per app,** for apps opened from other launchers. Off by default.
+- **Windows notification** when HDR turns on for an app.
+- **Adjustable wait per app,** for monitors that take longer to switch.
 - **Nothing resident by default:** the process exits on its own when no app needs HDR.
 
 ### Safety

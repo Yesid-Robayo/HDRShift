@@ -2,6 +2,7 @@
 //! Las imágenes del README salen de aquí, sin mostrar las apps ni el monitor de nadie.
 //!
 //! `HDRSHIFT_DEMO` = `on`, `off`, `edit`, `settings` o `welcome`; `HDRSHIFT_DEMO_SHOT` = archivo .bmp.
+//! `HDRSHIFT_DEMO_SCALE` simula una escala de pantalla, por ejemplo `1.5`.
 //! `HDRSHIFT_DEMO_PORTABLE` pulsa "Guardar los datos junto al exe", para probarlo sin ratón.
 
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -65,6 +66,12 @@ pub fn capture(ctx: &egui::Context) {
     let Ok(path) = std::env::var("HDRSHIFT_DEMO_SHOT") else { return };
     let frame = FRAMES.fetch_add(1, Ordering::Relaxed);
     ctx.request_repaint();
+    if frame == 0
+        && let Some(scale) = std::env::var("HDRSHIFT_DEMO_SCALE").ok().and_then(|s| s.parse::<f32>().ok())
+    {
+        ctx.set_zoom_factor(scale);
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(470.0, 660.0) * scale));
+    }
     if frame == CAPTURE_FRAME {
         ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::ScreenshotCallback::new(move |image| {
             write_bmp(&image, &path);

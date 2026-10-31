@@ -268,15 +268,15 @@ pub fn toggle_at(ui: &Ui, rect: Rect, id: Id, on: bool, enabled: bool, on_bright
     p.rect(rect, CornerRadius::same(255), fill, Stroke::new(1.0, edge), StrokeKind::Inside);
     let inset = rect.height() / 2.0;
     let x = egui::lerp((rect.left() + inset)..=(rect.right() - inset), t);
-    p.circle_filled(pos2(x, rect.center().y), inset - 5.0, theme::lerp(c().text, knob_on, t));
+    p.circle_filled(pos2(x, rect.center().y), inset * 0.62, theme::lerp(c().text, knob_on, t));
     if enabled { resp.on_hover_cursor(CursorIcon::PointingHand) } else { resp }
 }
 
-/// Interruptor dentro del flujo normal.
+/// Interruptor dentro del flujo normal. Su identidad no puede depender de la posición: al desplazar
+/// heredaría la animación del que pasó antes por ese punto y parpadearía.
 pub fn toggle(ui: &mut Ui, on: &mut bool) -> Response {
-    let (rect, _) = ui.allocate_exact_size(vec2(44.0, 24.0), Sense::hover());
-    let id = ui.scope_id().with(("toggle", rect.min.x as i32, rect.min.y as i32));
-    let mut resp = toggle_at(ui, rect, id, *on, true, false);
+    let (rect, slot) = ui.allocate_exact_size(vec2(44.0, 24.0), Sense::hover());
+    let mut resp = toggle_at(ui, rect, slot.id.with("toggle"), *on, true, false);
     if resp.clicked() {
         *on = !*on;
         resp.mark_changed();
@@ -328,11 +328,6 @@ pub fn muted(ui: &mut Ui, text: impl Into<String>) {
 
 pub fn section_title(ui: &mut Ui, text: &str) {
     ui.add_space(6.0);
-    section_label(ui, text);
-}
-
-/// El título de sección sin el margen, para ponerlo en una fila.
-pub fn section_label(ui: &mut Ui, text: &str) {
     ui.label(
         egui::RichText::new(text.to_uppercase()).font(theme::semibold(11.5)).color(c().faint).extra_letter_spacing(1.2),
     );
@@ -352,4 +347,23 @@ pub fn text_field(ui: &mut Ui, value: &mut String, width: f32, limit: usize, hin
             .margin(egui::Margin::symmetric(10, 8))
             .hint_text(hint),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_toggle_keeps_its_identity_when_it_moves() {
+        let ctx = egui::Context::default();
+        let mut ids = Vec::new();
+        for offset in [0.0, 30.0, 60.0] {
+            let mut frame = ctx.run_ui(egui::RawInput::default(), |ui| {
+                ui.add_space(offset);
+                ids.push(toggle(ui, &mut true).id);
+            });
+            frame.textures_delta.clear();
+        }
+        assert!(ids.windows(2).all(|pair| pair[0] == pair[1]), "{ids:?}");
+    }
 }

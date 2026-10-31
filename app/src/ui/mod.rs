@@ -73,7 +73,7 @@ pub fn run(reopening: bool) {
         let options = eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
                 .with_title(WINDOW_TITLE)
-                .with_inner_size([470.0, 720.0])
+                .with_inner_size([470.0, 660.0])
                 .with_min_inner_size([420.0, 560.0])
                 .with_icon(egui::IconData { rgba: icon.rgba8(), width: 64, height: 64 }),
             centered: true,
@@ -154,7 +154,9 @@ impl App {
         // si algo quedó sin restaurar, el servicio lo arregla sin esperar al próximo inicio de sesión,
         // y respeta las apps que sigan abiertas
         // si pidió quedarse en la bandeja también tiene que estar, aunque no arranque con Windows
-        if (FileLedger::exists() || cfg.stay_in_tray) && !ipc::service_running() {
+        // las pantallas de ejemplo no deben dejar un servicio en marcha
+        let demo = cfg!(debug_assertions) && std::env::var_os("HDRSHIFT_DEMO").is_some();
+        if !demo && (FileLedger::exists() || cfg.needs_tray()) && !ipc::service_running() {
             ipc::spawn_self("--service");
         }
         #[cfg_attr(not(debug_assertions), allow(unused_mut))]
@@ -249,7 +251,7 @@ impl eframe::App for App {
                     }
                 }
                 Page::Edit(e) => {
-                    if let Nav::Home = e.show(ui, &self.monitors, &mut self.cfg) {
+                    if let Nav::Home = e.show(ui, &self.monitors, &mut self.cfg, &mut self.icons) {
                         next = Some(Page::Home);
                     }
                 }
@@ -343,27 +345,14 @@ fn home(ui: &mut egui::Ui, app: &mut App) -> Option<Page> {
         });
     }
 
-    ui.add_space(4.0);
-    ui.horizontal(|ui| {
-        widgets::section_label(ui, tr("Tus apps", "Your apps"));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let mut auto = app.cfg.auto_detect;
-            let tip = tr(
-                "Enciende el HDR cuando abras una de tus apps por cualquier camino, también desde Steam. HDRShift se queda en la bandeja.",
-                "Turns HDR on when you open one of your apps by any route, even from Steam. HDRShift stays in the tray.",
-            );
-            if widgets::toggle(ui, &mut auto).on_hover_text(tip).changed() {
-                set_auto_detect(app, auto);
-            }
-            ui.label(egui::RichText::new(tr("Encender solo", "Turn on by itself")).size(12.5).color(c().muted))
-                .on_hover_text(tip);
-        });
-    });
+    widgets::section_title(ui, tr("Tus apps", "Your apps"));
     let footer = 56.0;
     let apps = app.cfg.apps.clone();
-    egui::ScrollArea::vertical().max_height(ui.available_height() - footer).auto_shrink([false, false]).show(
-        ui,
-        |ui| {
+    egui::ScrollArea::vertical()
+        .id_salt("home")
+        .max_height(ui.available_height() - footer)
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
             if apps.is_empty() {
                 empty_state(ui);
             }
@@ -377,11 +366,11 @@ fn home(ui: &mut egui::Ui, app: &mut App) -> Option<Page> {
                     }
                     CardAction::Open => app.order(&Command::Launch(entry.id.clone())),
                     CardAction::End => app.order(&Command::End(entry.id.clone())),
+                    CardAction::Auto(on) => set_app_auto(app, &entry.id, on),
                     CardAction::None => {}
                 }
             }
-        },
-    );
+        });
 
     ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
         if widgets::primary_button(ui, tr("+  Añadir app", "+  Add app"), ui.available_width(), true).clicked() {
@@ -438,12 +427,7 @@ fn hero(ui: &mut egui::Ui, app: &mut App, d: &Display) {
     let (title, detail) = match (d.hdr_on, by_app, manual) {
         (false, ..) => (
             tr("HDR apagado", "HDR off").to_string(),
-            if app.cfg.auto_detect {
-                tr("Se encenderá solo al abrir tus apps", "It will turn on by itself when you open your apps")
-            } else {
-                tr("Se enciende al abrir una app desde aquí", "It turns on when you open an app from here")
-            }
-            .to_string(),
+            tr("Actívalo aquí o al abrir una app", "Turn it on here or by opening an app").to_string(),
         ),
         (true, Some(h), _) => {
             let name = &h.label;
@@ -510,6 +494,7 @@ enum CardAction {
     Edit,
     Open,
     End,
+    Auto(bool),
 }
 
 fn app_card(ui: &mut egui::Ui, app: &mut App, entry: &AppEntry) -> CardAction {
@@ -555,24 +540,37 @@ fn app_card(ui: &mut egui::Ui, app: &mut App, entry: &AppEntry) -> CardAction {
         .iter()
         .filter(|d| entry.monitors.iter().any(|m| resolve(&app.monitors, m).is_some_and(|x| x.id == d.id)))
         .collect();
-    if running {
-        widgets::chip_at(ui, pos2(x, chip_y), tr("HDR activo", "HDR on"), c().accent);
-    } else if !exists {
+    let mut action = CardAction::None;
+    let mut auto_area = Rect::NOTHING;
+    if !exists && !running {
         widgets::chip_at(ui, pos2(x, chip_y), tr("Programa no encontrado", "Program not found"), c().warn);
-    } else if monitors.is_empty() {
+    } else if monitors.is_empty() && !running {
         widgets::chip_at(ui, pos2(x, chip_y), tr("Sin monitor elegido", "No monitor chosen"), c().warn);
     } else {
-        let text = if app.cfg.auto_detect {
-            tr("Se activa sola al abrirla", "Turns on by itself when opened")
-        } else {
-            tr("Ábrela con el botón o su acceso directo", "Open it with the button or its shortcut")
-        };
-        let line = widgets::one_line(ui, text.to_string(), egui::FontId::proportional(12.5), c().muted, text_width);
-        ui.painter().galley(pos2(x, chip_y - line.size().y / 2.0), line, c().muted);
+        let switch = Rect::from_center_size(pos2(x + 16.0, chip_y), vec2(32.0, 18.0));
+        let tip = tr(
+            "Enciende el HDR justo después de que se abra, la abras como la abras. HDRShift arranca con Windows y se queda en la bandeja. Si un juego necesita el HDR antes de arrancar, usa el botón o su acceso directo.",
+            "Turns HDR on right after it opens, however you open it. HDRShift starts with Windows and stays in the tray. If a game needs HDR before it starts, use the button or its shortcut.",
+        );
+        let toggle = widgets::toggle_at(ui, switch, id.with("auto"), entry.auto, true, false);
+        if toggle.on_hover_text(tip).clicked() {
+            action = CardAction::Auto(!entry.auto);
+        }
+        let label = tr("Encender solo", "Turn on by itself");
+        let font = egui::FontId::proportional(12.5);
+        let text = ui.painter().text(pos2(x + 40.0, chip_y), Align2::LEFT_CENTER, label, font, c().muted);
+        // pulsar el texto también lo cambia: abrir el editor ahí sería una sorpresa
+        let text_click = ui.interact(text, id.with("auto-text"), Sense::click());
+        if text_click.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+            action = CardAction::Auto(!entry.auto);
+        }
+        auto_area = switch.union(text);
+        if running {
+            widgets::chip_at(ui, pos2(text.right() + 8.0, chip_y), tr("HDR activo", "HDR on"), c().accent);
+        }
     }
 
     let button = Rect::from_center_size(pos2(rect.right() - 36.0, rect.center().y), vec2(40.0, 40.0));
-    let mut action = CardAction::None;
     if exists || running {
         let tip = if running {
             tr("Terminar la sesión de HDR", "End the HDR session")
@@ -587,7 +585,7 @@ fn app_card(ui: &mut egui::Ui, app: &mut App, entry: &AppEntry) -> CardAction {
     if widgets::icon_button_at(ui, pencil, id.with("edit"), Glyph::Edit, tr("Editar", "Edit")).clicked() {
         action = CardAction::Edit;
     }
-    let on_button = |pos: Pos2| button.contains(pos) || pencil.contains(pos);
+    let on_button = |pos: Pos2| button.contains(pos) || pencil.contains(pos) || auto_area.contains(pos);
     if resp.clicked()
         && matches!(action, CardAction::None)
         && !on_button(resp.interact_pointer_pos().unwrap_or_default())
@@ -599,19 +597,13 @@ fn app_card(ui: &mut egui::Ui, app: &mut App, entry: &AppEntry) -> CardAction {
     action
 }
 
-/// Interruptor de la pantalla principal. La detección necesita un proceso vivo: al apagarla, la bandeja
-/// solo sigue si Windows la arranca.
-fn set_auto_detect(app: &mut App, on: bool) {
+/// Interruptor "Encender solo" de una app.
+fn set_app_auto(app: &mut App, id: &str, on: bool) {
     let mut cfg = app.cfg.clone();
-    cfg.auto_detect = on;
-    if !on {
-        cfg.stay_in_tray = cfg.start_with_windows;
+    if let Some(entry) = cfg.apps.iter_mut().find(|a| a.id == id) {
+        entry.auto = on;
     }
-    let cfg = cfg.sanitized();
     if save_config(&cfg) {
-        if cfg.stay_in_tray && !ipc::service_running() {
-            ipc::spawn_self("--service");
-        }
         app.cfg = cfg;
     }
 }
@@ -622,6 +614,10 @@ pub fn save_config(cfg: &Config) -> bool {
         Ok(()) => {
             i18n::set(cfg.language);
             ipc::send(&Command::Reload);
+            crate::autostart::apply(cfg.starts_with_windows());
+            if cfg.needs_tray() && !ipc::service_running() {
+                ipc::spawn_self("--service");
+            }
             true
         }
         Err(e) => {

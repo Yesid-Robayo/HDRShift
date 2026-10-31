@@ -27,7 +27,7 @@ HDRShift is a Rust workspace with two crates:
 The service is the only process allowed to change HDR. A named mutex guarantees there is one per session. A shortcut first
 tries to hand its order to the running service through `WM_COPYDATA`. If there isn't one, that same process becomes the
 service, so nothing extra is launched. The service exits by itself when it has nothing to do, unless the user asked it to stay
-in the tray.
+in the tray or to start with Windows, or an app is marked to turn on by itself.
 
 ### The session engine
 
@@ -78,9 +78,12 @@ opening the game. A process counts as the app if it is:
 - anything in the exe's folder or subfolders, unless that folder is shared by unrelated programs (`Downloads`, `Windows`...);
 - the extra process name set by the user.
 
-Full paths are compared, so another program's `Launcher.exe` isn't the app. A path is read once per process. The service takes
-a process snapshot every 2 seconds while there's something to watch, and an app counts as closed 5 seconds after its last
-process is gone, to leave room for a launcher handing over to the game.
+Each app can also be marked to turn on by itself: the service then starts with Windows, stays running and starts its session
+when it sees the exact exe or the extra name, however it was opened. Full paths are compared, so another program's `Launcher.exe` isn't the app. While it follows an app, each path is read once per process. The service takes
+a process snapshot every 2 seconds while there's something to watch, or every half second while an app marked to turn on by
+itself isn't open yet or any app is inside the closing margin, and an app counts as closed 5 seconds after its last
+process is gone, to leave room for a launcher handing over to the game. If it comes back within those 5 seconds, HDR is
+requested again, because another program may have turned it off when the app closed.
 
 ### Recovery
 
@@ -134,7 +137,7 @@ HDRShift es un workspace de Rust con dos crates:
 El servicio es el único proceso que puede cambiar el HDR. Un mutex con nombre garantiza que haya uno por sesión. Un acceso
 directo primero intenta pasarle su orden al servicio por `WM_COPYDATA`. Si no hay ninguno, ese mismo proceso se convierte en el
 servicio, así que no se lanza nada de más. El servicio sale solo cuando no tiene nada que hacer, salvo que el usuario haya
-pedido quedarse en la bandeja.
+pedido quedarse en la bandeja o iniciar con Windows, o que una app esté marcada para encenderse sola.
 
 ### El motor de sesiones
 
@@ -185,9 +188,12 @@ el juego. Un proceso cuenta como la app si es:
   `Windows`...);
 - el nombre de proceso extra que indicó el usuario.
 
-Se comparan rutas completas, así que el `Launcher.exe` de otro programa no es la app. Cada ruta se lee una vez por proceso. El
-servicio mira los procesos cada 2 segundos mientras hay algo que vigilar, y una app cuenta como cerrada 5 segundos después de
-que desaparezca su último proceso, para dejar margen al relevo entre lanzador y juego.
+Cada app también se puede marcar para que se encienda sola: el servicio arranca con Windows, sigue en marcha e inicia su sesión
+al ver el exe exacto o el nombre extra, se abra como se abra. Se comparan rutas completas, así que el `Launcher.exe` de otro programa no es la app. Al seguir una app, cada ruta se lee una vez por proceso. El
+servicio mira los procesos cada 2 segundos mientras hay algo que vigilar, o cada medio segundo mientras una app marcada para
+encenderse sola aún no esté abierta o alguna app esté en el margen de cierre, y una app cuenta como cerrada 5 segundos después de
+que desaparezca su último proceso, para dejar margen al relevo entre lanzador y juego. Si vuelve dentro de esos 5 segundos
+se pide el HDR otra vez, porque otro programa pudo apagarlo al cerrarse la app.
 
 ### Recuperación
 

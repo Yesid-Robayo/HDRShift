@@ -92,7 +92,11 @@ pub fn spawn_self(arg: &str) {
     // la bandeja le cede el primer plano: sin esto, la ventana nueva se abriría detrás de otras
     unsafe { AllowSetForegroundWindow(ASFW_ANY) };
     let Ok(exe) = std::env::current_exe() else { return };
-    let mut process = std::process::Command::new(exe);
+    let mut process = std::process::Command::new(&exe);
+    // el servicio no debe ocupar la carpeta de quien lo lanza
+    if let Some(folder) = exe.parent() {
+        process.current_dir(folder);
+    }
     if !arg.is_empty() {
         process.arg(arg);
     }

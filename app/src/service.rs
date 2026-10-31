@@ -37,6 +37,9 @@ use crate::tray::{self, Tray};
 
 /// Cada cuánto se miran los procesos mientras hay algo que vigilar.
 const TICK: Duration = Duration::from_secs(2);
+/// Lo mismo si una app marcada puede abrirse en cualquier momento: el juego no espera a HDRShift, y
+/// cuanto antes se vea, más probable es que el HDR llegue antes de que él lo compruebe.
+const DETECT_TICK: Duration = Duration::from_millis(500);
 /// Espera entre comprobaciones sin nada que hacer, en la bandeja.
 const IDLE_WAIT: Duration = Duration::from_secs(60);
 const PENDING_WAIT: Duration = Duration::from_secs(5);
@@ -173,7 +176,7 @@ fn serve(_instance: Instance, first: Option<Command>) {
     let cfg = Config::try_load();
     // por si el exe cambió de carpeta; con un archivo ilegible no se sabe qué eligió el usuario
     if let Some(cfg) = &cfg {
-        crate::autostart::apply(cfg.start_with_windows);
+        crate::autostart::apply(cfg.starts_with_windows());
     }
     let cfg = cfg.unwrap_or_default();
     i18n::set(cfg.language);
@@ -377,8 +380,10 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 /// Una app con el HDR encendido.
 struct Session {
     app: String,
-    /// `None` mientras se está abriendo.
+    /// `None` hasta que se abre por primera vez.
     tracker: Option<Tracker>,
+    /// Hay un intento de abrirla en curso. No tiene plazo: puede esperar a la ventana de permisos.
+    opening: bool,
 }
 
 struct Worker {
@@ -388,6 +393,8 @@ struct Worker {
     sessions: Vec<Session>,
     /// Apps cuya sesión terminó el usuario sin cerrarlas: no se vuelven a detectar hasta que se cierren.
     dismissed: HashSet<String>,
+    /// Apps con un fallo ya avisado en su sesión.
+    warned: HashSet<String>,
     shared_folders: Vec<String>,
     tx: Sender<Msg>,
     shared: Arc<Mutex<Shared>>,
@@ -420,6 +427,7 @@ fn worker(
         cfg,
         sessions: Vec::new(),
         dismissed: HashSet::new(),
+        warned: HashSet::new(),
         shared_folders: watch::shared_folders(),
         tx,
         shared,
@@ -512,7 +520,7 @@ impl Worker {
         for id in kept {
             if let Some(app) = self.cfg.find(&id).cloned() {
                 let tracker = Tracker::already_open(self.target(&app), Instant::now());
-                self.sessions.push(Session { app: id, tracker: Some(tracker) });
+                self.sessions.push(Session { app: id, tracker: Some(tracker), opening: false });
             }
         }
     }
@@ -523,7 +531,31 @@ impl Worker {
         }
     }
 
-    /// Solo se avisa de lo que no salió bien: si todo va como se espera, la pantalla ya lo dice.
+    /// Enciende el HDR para una app y avisa de cómo fue. Devuelve si cambió algo.
+    fn hold_app(&mut self, app: &AppEntry) -> bool {
+        let outcomes = self.engine.hold(HoldKind::App(app.id.clone()), &app.name, &app.monitors);
+        self.report(&app.name, &outcomes);
+        self.confirm(app, &outcomes)
+    }
+
+    /// Confirma con un aviso de Windows que el HDR se encendió: si ya estaba encendido no ha cambiado
+    /// nada y no se avisa. Anota si hubo fallos, para que `renew` no los repita.
+    fn confirm(&mut self, app: &AppEntry, outcomes: &[MonitorOutcome]) -> bool {
+        let fine = |o: &MonitorOutcome| matches!(o.result, MonitorResult::TurnedOn | MonitorResult::AlreadyOn);
+        if outcomes.iter().all(fine) {
+            self.warned.remove(&app.id);
+        } else {
+            self.warned.insert(app.id.clone());
+        }
+        let changed = outcomes.iter().any(|o| o.result == MonitorResult::TurnedOn);
+        if changed {
+            let name = &app.name;
+            self.notice("HDRShift".into(), trf!("HDR activo · {name}", "HDR on · {name}"));
+        }
+        changed
+    }
+
+    /// Avisa de lo que no salió bien.
     fn report(&mut self, label: &str, outcomes: &[MonitorOutcome]) {
         for o in outcomes {
             let text = match o.result {
@@ -569,7 +601,7 @@ impl Worker {
                 if let Some(cfg) = Config::try_load() {
                     self.cfg = cfg;
                     i18n::set(self.cfg.language);
-                    crate::autostart::apply(self.cfg.start_with_windows);
+                    crate::autostart::apply(self.cfg.starts_with_windows());
                 }
             }
             Command::Quit => {
@@ -605,29 +637,29 @@ impl Worker {
             return;
         }
         // ya se está abriendo: un doble clic no debe abrirla dos veces
-        if self.sessions.iter().any(|s| s.app == app.id && s.tracker.is_none()) {
+        if self.sessions.iter().any(|s| s.app == app.id && s.opening) {
             return;
         }
         log::info(&format!("abriendo {}", app.name));
         self.dismissed.remove(id);
-        let outcomes = self.engine.hold(HoldKind::App(app.id.clone()), &app.name, &app.monitors);
-        self.report(&app.name, &outcomes);
-        let changed = outcomes.iter().any(|o| o.result == MonitorResult::TurnedOn);
-        if !self.sessions.iter().any(|s| s.app == app.id) {
-            self.sessions.push(Session { app: app.id.clone(), tracker: None });
+        let changed = self.hold_app(&app);
+        let settle = HDR_SETTLE + Duration::from_secs(app.extra_wait.into());
+        match self.sessions.iter_mut().find(|s| s.app == app.id) {
+            Some(s) => s.opening = true,
+            None => self.sessions.push(Session { app: app.id.clone(), tracker: None, opening: true }),
         }
         let tx = self.tx.clone();
         let spawned = std::thread::Builder::new().name("abrir".into()).spawn(move || {
             unsafe { CoInitializeEx(std::ptr::null(), (COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) as u32) };
             if changed {
-                std::thread::sleep(HDR_SETTLE);
+                std::thread::sleep(settle);
             }
             let result = launch::open(&app.exe, &app.args);
             let _ = tx.send(Msg::Opened { app: app.id, result });
         });
         if let Err(e) = spawned {
             log::error(&format!("no se pudo crear el hilo para abrir la app: {e}"));
-            self.end_session(id);
+            self.open_failed(id);
         }
     }
 
@@ -640,8 +672,13 @@ impl Worker {
                     return;
                 };
                 let target = self.target(&app);
-                if let Some(s) = self.sessions.iter_mut().find(|s| s.app == id && s.tracker.is_none()) {
-                    s.tracker = Some(Tracker::new(target, Instant::now()));
+                let now = Instant::now();
+                if let Some(s) = self.sessions.iter_mut().find(|s| s.app == id) {
+                    s.opening = false;
+                    match &mut s.tracker {
+                        Some(t) => t.expect_again(now),
+                        None => s.tracker = Some(Tracker::new(target, now)),
+                    }
                 }
             }
             Err(ERROR_CANCELLED) => {
@@ -662,13 +699,16 @@ impl Worker {
     /// Un intento fallido solo termina la sesión si es la que se estaba abriendo: si la app ya estaba
     /// abierta y falló un segundo clic, sigue necesitando su HDR.
     fn open_failed(&mut self, id: &str) {
-        if self.sessions.iter().any(|s| s.app == id && s.tracker.is_none()) {
+        let Some(s) = self.sessions.iter_mut().find(|s| s.app == id) else { return };
+        s.opening = false;
+        if s.tracker.is_none() {
             self.end_session(id);
         }
     }
 
     fn end_session(&mut self, id: &str) {
         self.sessions.retain(|s| s.app != id);
+        self.warned.remove(id);
         self.engine.release(&HoldKind::App(id.to_string()));
     }
 
@@ -705,11 +745,15 @@ impl Worker {
     }
 
     fn wait(&self) -> Duration {
-        if !self.sessions.is_empty() || self.cfg.auto_detect || !self.dismissed.is_empty() {
+        let waiting = |a: &AppEntry| a.auto && !self.sessions.iter().any(|s| s.app == a.id);
+        let closing = self.sessions.iter().any(|s| s.tracker.as_ref().is_some_and(Tracker::is_closing));
+        if closing || self.cfg.apps.iter().any(waiting) {
+            DETECT_TICK
+        } else if !self.sessions.is_empty() || !self.dismissed.is_empty() {
             TICK
         } else if !self.engine.pending().is_empty() {
             PENDING_WAIT
-        } else if self.cfg.stay_in_tray {
+        } else if self.cfg.needs_tray() {
             IDLE_WAIT
         } else {
             EXIT_AFTER / 2
@@ -718,22 +762,8 @@ impl Worker {
 
     fn tick(&mut self) {
         let watching = self.sessions.iter().any(|s| s.tracker.is_some());
-        if watching || self.cfg.auto_detect || !self.dismissed.is_empty() {
-            let procs = self.processes();
-            let now = Instant::now();
-            let mut closed = Vec::new();
-            for s in &mut self.sessions {
-                if let Some(t) = &mut s.tracker
-                    && !t.update(now, &procs, &mut watch::image_path)
-                {
-                    closed.push(s.app.clone());
-                }
-            }
-            for id in closed {
-                log::info("la app se cerró");
-                self.end_session(&id);
-            }
-            self.detect(&procs);
+        if watching || self.cfg.any_auto() || !self.dismissed.is_empty() {
+            self.follow_apps();
         }
         if !self.engine.pending().is_empty() && self.last_retry.elapsed() >= RETRY_GAP {
             self.last_retry = Instant::now();
@@ -741,7 +771,48 @@ impl Worker {
         }
     }
 
-    /// Detección automática: una app de la lista abierta por cualquier camino.
+    fn follow_apps(&mut self) {
+        let procs = self.processes();
+        // sin lista no se sabe nada: no significa que las apps se hayan cerrado
+        if procs.is_empty() {
+            return;
+        }
+        let now = Instant::now();
+        let mut closed = Vec::new();
+        let mut reopened = Vec::new();
+        for s in &mut self.sessions {
+            let Some(t) = &mut s.tracker else { continue };
+            let open = t.update(now, &procs, &mut watch::image_path);
+            if !open && !s.opening {
+                closed.push(s.app.clone());
+            } else if t.take_reopened() {
+                reopened.push(s.app.clone());
+            }
+        }
+        for id in closed {
+            log::info("la app se cerró");
+            self.end_session(&id);
+        }
+        for id in reopened {
+            self.renew(&id);
+        }
+        self.detect(&procs);
+    }
+
+    /// Una app que vuelve dentro del margen de cierre conserva su sesión, así que `detect` no la ve;
+    /// otro programa pudo apagar el HDR al verla cerrarse.
+    fn renew(&mut self, id: &str) {
+        let Some(app) = self.cfg.find(id).cloned() else { return };
+        log::info(&format!("{} volvió a abrirse", app.name));
+        let outcomes = self.engine.hold(HoldKind::App(app.id.clone()), &app.name, &app.monitors);
+        // el mismo fallo no se avisa otra vez en el relevo entre lanzador y juego
+        if !self.warned.contains(&app.id) {
+            self.report(&app.name, &outcomes);
+        }
+        self.confirm(&app, &outcomes);
+    }
+
+    /// Apps marcadas para encenderse solas: abiertas por cualquier camino.
     fn detect(&mut self, procs: &[Proc]) {
         let cfg = self.cfg.clone();
         self.dismissed.retain(|id| {
@@ -749,19 +820,15 @@ impl Worker {
                 Target::new(&a.exe, &a.watch, &self.shared_folders).running(procs, &mut watch::image_path)
             })
         });
-        if !cfg.auto_detect {
-            return;
-        }
-        for app in &cfg.apps {
+        for app in cfg.apps.iter().filter(|a| a.auto) {
             let known = self.dismissed.contains(&app.id) || self.sessions.iter().any(|s| s.app == app.id);
             if known || !self.target(app).running(procs, &mut watch::image_path) {
                 continue;
             }
             log::info(&format!("detectada {}", app.name));
-            let outcomes = self.engine.hold(HoldKind::App(app.id.clone()), &app.name, &app.monitors);
-            self.report(&app.name, &outcomes);
+            self.hold_app(app);
             let tracker = Tracker::already_open(self.target(app), Instant::now());
-            self.sessions.push(Session { app: app.id.clone(), tracker: Some(tracker) });
+            self.sessions.push(Session { app: app.id.clone(), tracker: Some(tracker), opening: false });
         }
     }
 
@@ -802,6 +869,6 @@ impl Worker {
             self.last_busy = Instant::now();
             return false;
         }
-        !self.cfg.stay_in_tray && self.last_busy.elapsed() >= EXIT_AFTER
+        !self.cfg.needs_tray() && self.last_busy.elapsed() >= EXIT_AFTER
     }
 }

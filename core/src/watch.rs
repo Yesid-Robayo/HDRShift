@@ -7,13 +7,17 @@
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Foundation::{CloseHandle, HWND, INVALID_HANDLE_VALUE, LPARAM};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
 use windows_sys::Win32::System::Threading::{
     OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    EnumWindows, GW_OWNER, GetWindow, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
+};
+use windows_sys::core::BOOL;
 
 /// Margen para el traspaso de lanzador a juego: si no queda nada abierto, se espera esto antes de
 /// dar la app por cerrada.
@@ -52,6 +56,58 @@ pub fn snapshot() -> Vec<Proc> {
 
 /// Ruta completa en minúsculas de un proceso, si Windows deja leerla.
 pub fn image_path(pid: u32) -> Option<String> {
+    real_path(pid).map(|p| p.to_lowercase())
+}
+
+/// Un programa abierto, para añadirlo sin tener que buscar su exe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenApp {
+    /// Título de su ventana.
+    pub title: String,
+    pub exe: String,
+}
+
+unsafe extern "system" fn collect_window(hwnd: HWND, list: LPARAM) -> BOOL {
+    unsafe {
+        let list = &mut *(list as *mut Vec<(u32, String)>);
+        if IsWindowVisible(hwnd) != 0 && GetWindow(hwnd, GW_OWNER).is_null() {
+            let mut buf = [0u16; 256];
+            let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32);
+            let mut pid = 0;
+            GetWindowThreadProcessId(hwnd, &mut pid);
+            if len > 0 && pid != 0 {
+                list.push((pid, String::from_utf16_lossy(&buf[..len as usize])));
+            }
+        }
+        1
+    }
+}
+
+/// Programas con una ventana visible, sin Windows ni el propio HDRShift.
+pub fn open_apps() -> Vec<OpenApp> {
+    let mut windows: Vec<(u32, String)> = Vec::new();
+    unsafe { EnumWindows(Some(collect_window), &mut windows as *mut _ as LPARAM) };
+    let found = windows.into_iter().filter_map(|(pid, title)| Some(OpenApp { title, exe: real_path(pid)? })).collect();
+    let own = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default();
+    choose_open_apps(found, &own, &std::env::var("WINDIR").unwrap_or_default())
+}
+
+fn choose_open_apps(found: Vec<OpenApp>, own_exe: &str, windows_dir: &str) -> Vec<OpenApp> {
+    let windows_dir = format!("{}\\", normalize(windows_dir));
+    let mut seen = HashSet::new();
+    let mut out: Vec<OpenApp> = found
+        .into_iter()
+        .filter(|a| {
+            let exe = normalize(&a.exe);
+            exe != normalize(own_exe) && !exe.starts_with(&windows_dir) && seen.insert(exe)
+        })
+        .collect();
+    out.sort_by_key(|a| a.title.to_lowercase());
+    out
+}
+
+/// Ruta completa de un proceso, tal como está escrita.
+fn real_path(pid: u32) -> Option<String> {
     unsafe {
         let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
         if h.is_null() {
@@ -61,7 +117,7 @@ pub fn image_path(pid: u32) -> Option<String> {
         let mut len = buf.len() as u32;
         let ok = QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len);
         CloseHandle(h);
-        (ok != 0).then(|| String::from_utf16_lossy(&buf[..len as usize]).to_lowercase())
+        (ok != 0).then(|| String::from_utf16_lossy(&buf[..len as usize]))
     }
 }
 
@@ -127,6 +183,11 @@ impl Target {
         Self { exe, exe_name, folder, extra }
     }
 
+    fn contains(&self, path: &str) -> bool {
+        path == self.exe
+            || self.folder.as_ref().is_some_and(|f| path.strip_prefix(f.as_str()).is_some_and(|r| r.starts_with('\\')))
+    }
+
     /// Solo se pide la ruta de un proceso si puede cambiar la respuesta.
     fn needs_path(&self, name: &str) -> bool {
         self.folder.is_some() || name == self.exe_name
@@ -137,13 +198,7 @@ impl Target {
             return true;
         }
         match path {
-            Some(p) => {
-                p == self.exe
-                    || self
-                        .folder
-                        .as_ref()
-                        .is_some_and(|f| p.strip_prefix(f.as_str()).is_some_and(|r| r.starts_with('\\')))
-            }
+            Some(p) => self.contains(p),
             // Windows no deja leer la ruta de procesos protegidos: queda el nombre
             None => name == self.exe_name,
         }
@@ -173,16 +228,39 @@ pub struct Tracker {
     known: HashMap<u32, (String, bool)>,
     started: Instant,
     last_alive: Option<Instant>,
+    /// Se quedó sin procesos y aún está dentro de `EXIT_GRACE`.
+    closing: bool,
+    /// Volvió a abrirse dentro de ese margen.
+    reopened: bool,
 }
 
 impl Tracker {
     pub fn new(target: Target, now: Instant) -> Self {
-        Self { target, known: HashMap::new(), started: now, last_alive: None }
+        Self { target, known: HashMap::new(), started: now, last_alive: None, closing: false, reopened: false }
     }
 
     /// Para una app que ya se vio abierta: no hay que esperar a que aparezca.
     pub fn already_open(target: Target, now: Instant) -> Self {
         Self { last_alive: Some(now), ..Self::new(target, now) }
+    }
+
+    /// Se acaba de abrir otra vez: el margen para verla aparecer empieza de nuevo y el de cierre deja
+    /// de contar.
+    pub fn expect_again(&mut self, now: Instant) {
+        self.started = now;
+        self.last_alive = None;
+        self.closing = false;
+    }
+
+    /// Se quedó sin procesos pero aún no cuenta como cerrada: puede volver en cualquier momento.
+    pub fn is_closing(&self) -> bool {
+        self.closing
+    }
+
+    /// Volvió a abrirse dentro del margen de cierre; se avisa una vez por cada vuelta. Sigue siendo
+    /// la misma sesión, pero otro programa pudo apagar el HDR al ver cerrarse la app.
+    pub fn take_reopened(&mut self) -> bool {
+        std::mem::take(&mut self.reopened)
     }
 
     /// `false` cuando la app ya se cerró.
@@ -204,11 +282,16 @@ impl Tracker {
             alive |= matched;
         }
         if alive {
+            self.reopened |= self.closing;
+            self.closing = false;
             self.last_alive = Some(now);
             return true;
         }
         match self.last_alive {
-            Some(t) => now.duration_since(t) < EXIT_GRACE,
+            Some(t) => {
+                self.closing = true;
+                now.duration_since(t) < EXIT_GRACE
+            }
             None => now.duration_since(self.started) < START_GRACE,
         }
     }
@@ -319,6 +402,57 @@ mod tests {
         assert!(!step(&mut t, start + EXIT_GRACE, &[]));
     }
 
+    /// Se cierra y vuelve dentro del margen: sigue la sesión, pero debe saberse para pedir el HDR otra
+    /// vez, porque mientras tanto otro programa pudo apagarlo.
+    #[test]
+    fn notices_an_app_that_comes_back_inside_the_margin() {
+        let start = Instant::now();
+        let mut t = Tracker::new(Target::new(GAME, "", &shared()), start);
+        assert!(step(&mut t, start, &[(10, "launcher.exe", GAME)]));
+        assert!(!t.take_reopened());
+        assert!(step(&mut t, start + Duration::from_secs(2), &[]));
+        assert!(t.is_closing());
+        assert!(step(&mut t, start + Duration::from_secs(4), &[(11, "launcher.exe", GAME)]));
+        assert!(!t.is_closing());
+        assert!(t.take_reopened());
+        assert!(!t.take_reopened(), "se avisa una sola vez");
+    }
+
+    /// Aparecer por primera vez no es volver: el HDR ya se pidió al lanzarla.
+    #[test]
+    fn the_first_appearance_is_not_a_return() {
+        let start = Instant::now();
+        let mut t = Tracker::new(Target::new(GAME, "", &shared()), start);
+        assert!(step(&mut t, start + Duration::from_secs(5), &[]));
+        assert!(!t.is_closing());
+        assert!(step(&mut t, start + Duration::from_secs(10), &[(10, "launcher.exe", GAME)]));
+        assert!(!t.take_reopened());
+    }
+
+    #[test]
+    fn expecting_the_app_again_renews_the_margin() {
+        let start = Instant::now();
+        let mut t = Tracker::new(Target::new(GAME, "", &shared()), start);
+        let later = start + START_GRACE;
+        t.expect_again(later);
+        assert!(step(&mut t, later + Duration::from_secs(10), &[]));
+    }
+
+    /// Se abre otra vez mientras se cerraba: no debe darse por cerrada antes de que aparezca.
+    #[test]
+    fn expecting_the_app_again_cancels_the_closing_margin() {
+        let start = Instant::now();
+        let mut t = Tracker::new(Target::new(GAME, "", &shared()), start);
+        assert!(step(&mut t, start, &[(10, "launcher.exe", GAME)]));
+        assert!(step(&mut t, start + Duration::from_secs(2), &[]));
+        let again = start + Duration::from_secs(3);
+        t.expect_again(again);
+        assert!(!t.is_closing());
+        assert!(step(&mut t, again + Duration::from_secs(10), &[]), "sigue esperando a que aparezca");
+        assert!(!t.is_closing());
+        assert!(!step(&mut t, again + START_GRACE, &[]));
+    }
+
     #[test]
     fn asks_for_each_path_only_once() {
         let start = Instant::now();
@@ -350,6 +484,29 @@ mod tests {
         assert!(t.any_open(&procs(&[(1, "rdr2.exe")]), &mut game));
         let mut other = |_| Some("c:\\otra\\rdr2.exe".to_string());
         assert!(!t.any_open(&procs(&[(1, "rdr2.exe")]), &mut other));
+    }
+
+    #[test]
+    fn the_open_apps_list_has_no_windows_programs_no_repeats_and_not_itself() {
+        let app = |title: &str, exe: &str| OpenApp { title: title.into(), exe: exe.into() };
+        let found = vec![
+            app("Zeta", "C:\\Games\\Zeta\\zeta.exe"),
+            app("Otra ventana de Zeta", "C:\\Games\\Zeta\\ZETA.EXE"),
+            app("Explorador", "C:\\Windows\\explorer.exe"),
+            app("HDRShift", "C:\\Apps\\HDRShift.exe"),
+            app("alfa", "D:\\alfa.exe"),
+        ];
+        let list = choose_open_apps(found, "C:\\Apps\\HDRShift.exe", "C:\\Windows");
+        let titles: Vec<&str> = list.iter().map(|a| a.title.as_str()).collect();
+        assert_eq!(titles, ["alfa", "Zeta"]);
+    }
+
+    /// La lista real de ventanas no debe fallar, haya las que haya.
+    #[test]
+    fn listing_open_apps_works() {
+        for app in open_apps() {
+            assert!(!app.exe.is_empty());
+        }
     }
 
     #[test]

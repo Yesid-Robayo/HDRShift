@@ -56,14 +56,16 @@ HDRShift doesn't touch it.
   is running.
 - **Several apps at once:** HDR stays on until the last one closes.
 - **Manual switch:** turn HDR on until you say otherwise, from the window, the tray or a one-click shortcut.
-- **Optional automatic detection:** turns HDR on even if you open the app from Steam or another launcher. Off by default.
+- **Optional automatic detection, per app:** turns HDR on even if another launcher opens it. Off by default.
+- **Easy to add:** pick an app that's already open, with no need to look for its exe.
 - **It never forgets:** after a crash, a power cut or a monitor being unplugged, HDR is put back when possible.
 - **Dark and light themes**, or the same one as Windows. **Spanish and English.**
 - **Portable and light:** one exe of about 5 MB, with no installer or runtime.
 
 ## 🔍 How it works
 
-1. You open the shortcut. HDRShift turns on HDR in that app's monitors and checks that Windows really changed it.
+1. You open the shortcut. HDRShift turns on HDR in that app's monitors, checks that Windows really changed it and confirms it
+   with a Windows notification.
 2. It waits a moment for the monitor to switch signal, since many games read HDR only when they start, and opens the app.
 3. It stays in the tray while the app is open, using about 4 MB of memory.
 4. When the app closes, it waits about 5 seconds, in case a launcher is handing over to the game, puts HDR back and exits.
@@ -92,7 +94,9 @@ and it doesn't touch Automatic Color Management.
 | Open and close an app, HDR restored identically | ✅ Real test |
 | Two apps at once, same shortcut twice | ✅ Real test |
 | Launcher that opens the game and exits | ✅ Real test |
-| Process killed, sign-in recovery, Windows sign-out with an app open | ✅ Real test (sign-out simulated) |
+| A real game, from its shortcut and with **Turn on by itself** | ✅ Real test |
+| Process killed, sign-in recovery | ✅ Real test |
+| Restarting the PC with an app open, starting with Windows | ✅ Real test |
 | Screen off | ✅ Real test |
 | Automatic detection | ✅ Real test |
 
@@ -100,11 +104,11 @@ and it doesn't touch Automatic Color Management.
 |---|---|
 | Windows 10 and Windows 11 before 24H2 | Uses the older Windows request; should work, not verified |
 | Several monitors at once, two identical monitors | Covered by automated tests only |
-| Display scale above 100 % | |
-| Anti-cheat games | They might hide their process from detection |
+| Display scale above 100 % on a real screen | Simulated at 150 % |
+| Anti-cheat games | Worked in one session of one game; others might hide their process from detection |
 
-Measured on one PC: about 0.3 s to change HDR; 3.6 MB of private memory and 0.03 % CPU with an app open; 2.1 MB and 0.02 %
-CPU in the tray with detection on. The window uses about 75 MB, only while it's open.
+Measured on one PC: about 0.3 s to change HDR; 3.6 MB of private memory and 0.03 % CPU with an app open; 2.1 MB and 0.1 % CPU
+in the tray waiting for an app with **Turn on by itself**, which it notices in about half a second. The window uses about 85 MB, only while it's open.
 
 ## 📦 Install
 
@@ -129,15 +133,21 @@ To uninstall: in the settings, press **Uninstall…**, choose whether to keep yo
 ## 🎮 How to use it
 
 1. Open HDRShift. The top card shows whether your monitor has HDR on, with a switch to change it by hand.
-2. Press **Add app**, choose the game's exe and press **Save**. Your HDR monitors are selected already.
+2. Press **Add app**, choose the game's exe or pick it from **Pick from open apps**, and press **Save**. Your HDR monitors
+   are selected already.
 3. Press the app's pencil, then **Create shortcut**.
 4. Open your game from that shortcut from now on.
 
 The play button in each card does the same thing. While a session is active it turns into a stop button, which ends the
 session and puts HDR back without closing the app.
 
-Prefer not to think about it? Turn on **Turn on by itself** above your apps: HDR turns on however you open them, even from
-Steam. HDRShift then stays in the tray.
+Prefer not to think about it? Turn on **Turn on by itself** in an app's card: HDR turns on however you open it.
+While any app has it on, HDRShift starts with Windows and stays in the tray.
+
+> [!IMPORTANT]
+> The play button and the shortcut turn HDR on **before** opening the game. **Turn on by itself** can only do
+> it **after**, because something else opened the game: HDRShift notices within half a second. If a game needs HDR before it
+> starts, use one of those two, or turn on the manual switch before opening it.
 
 To change an app or remove it, press its pencil.
 
@@ -150,25 +160,40 @@ it was first.
 |---|---|
 | **Theme** | Same as Windows, dark or light. |
 | **Language** | Spanish or English. |
-| **Stay in the tray** | Keeps the switch at hand. Off, HDRShift leaves nothing running when no apps are open. |
-| **Detect my apps on its own** | The same as the **Turn on by itself** switch above your apps. Needs **Stay in the tray**. |
-| **Start with Windows** | Starts in the tray. Needs **Stay in the tray**. |
+| **Stay in the tray** | Keeps the switch at hand. Off, HDRShift leaves nothing running with no apps open, unless one has **Turn on by itself** or **Start with Windows** is on. |
+| **Start with Windows** | Starts in the tray. It also happens if an app has **Turn on by itself**. |
 | **Create the switch shortcut** | Creates a shortcut that turns HDR on or off with one click. |
 
-In an app, **Advanced options** has its arguments and another process that counts as the app, for launchers that open the
-game from a different folder.
+In an app, **Advanced options** has its arguments, another process that counts as the app, for launchers that open the game
+from a different folder, and the wait before opening it. Raise the wait if the game opens before your monitor
+finishes switching.
 
 Your data is in `%APPDATA%\HDRShift`: `config.json` (apps and settings), `ledger.json` (what's left to restore),
 `status.json` (what the window shows) and `hdrshift.log`.
 
 ## ❓ FAQ
 
+**Is it safe?**
+HDRShift doesn't use the internet, ask for administrator rights or install drivers or services. It only changes the Windows HDR
+setting and keeps its data in your user folder. [SECURITY.md](SECURITY.md) lists what it does and doesn't do.
+
 **Can this damage my monitor?**
 No. HDRShift only changes the Windows HDR setting, the same as the switch in Settings or `Win + Alt + B`.
 
+**Can it get me banned in online games?**
+The risk is very low, because HDRShift doesn't touch the game: it doesn't inject anything, read its memory or change its
+files. It only changes the Windows HDR setting, and lists processes and their paths as Task Manager does. Anti-cheats don't
+publish their rules, so nobody can promise 100 %, and you use it at your own risk. In games with anti-cheat, let their launcher
+open them and use **Turn on by itself** or the manual switch: the open button and shortcuts make HDRShift the one
+opening them.
+
 **My game doesn't see HDR.**
-Many games decide when they start. Use the shortcut, which turns HDR on first. With automatic detection, the game may
-already be starting when HDR turns on: restart it once.
+Many games decide when they start. Use the play button or the shortcut, which turn HDR on first. If it still
+fails, raise the wait in **Advanced options**: your monitor may need longer. With **Turn on by itself**, the game is already
+starting when HDR turns on: restart it once.
+
+**I don't know where the game's exe is.**
+Open the game, then press **Add app** and **Pick from open apps**.
 
 **HDR turns off while the game is still open.**
 Its launcher probably opened it from another folder. In the app, go to **Advanced options** and write the name of the
@@ -177,6 +202,7 @@ game's process, such as `game.exe`.
 **HDR stayed on.**
 Open HDRShift: it finishes anything left to restore. If the **HDR left to restore** card appears, Windows isn't letting it
 yet; it keeps trying on its own. The reason is in `hdrshift.log`. If that monitor no longer exists, press **Forget**.
+You can also turn HDR off yourself with `Win + Alt + B` or in **Settings › Display**.
 
 **Is it portable?**
 Yes. In the settings, press **Keep the data next to the exe (portable)**: your data moves to a `HDRShiftData` folder beside
